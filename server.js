@@ -125,6 +125,20 @@ function sendJson(res, status, data) {
 }
 
 function readJsonBody(req, maxBytes = 15 * 1024 * 1024) {
+  // If Vercel or middleware already parsed the body, return it immediately
+  if (req.body !== undefined && req.body !== null) {
+    if (typeof req.body === 'object') {
+      return Promise.resolve(req.body);
+    }
+    if (typeof req.body === 'string' && req.body.trim()) {
+      try {
+        return Promise.resolve(JSON.parse(req.body));
+      } catch (e) {
+        return Promise.reject(new Error('Invalid JSON'));
+      }
+    }
+  }
+
   return new Promise((resolve, reject) => {
     let raw = '';
     let size = 0;
@@ -275,7 +289,42 @@ async function handleApi(req, res, urlPath) {
       return;
     }
 
-    if (store.users.some((u) => u.email.toLowerCase() === email)) {
+    const existingUser = store.users.find((u) => u.email.toLowerCase() === email);
+    if (existingUser) {
+      if (verifyPassword(password, existingUser.passwordHash)) {
+        if (existingUser.active === false) {
+          recordLoginEvent(store, req, { user: existingUser, action: 'Sign In', status: 'Blocked' });
+          saveStore(store);
+          sendJson(res, 403, { error: 'This account has been disabled by the administrator.' });
+          return;
+        }
+
+        const now = new Date().toISOString();
+        existingUser.loginCount = (existingUser.loginCount || 0) + 1;
+        existingUser.lastLoginAt = now;
+
+        const token = crypto.randomBytes(24).toString('hex');
+        store.sessions[token] = { userId: existingUser.id, createdAt: now };
+
+        recordLoginEvent(store, req, { user: existingUser, action: 'Sign In', status: 'Success' });
+        saveStore(store);
+
+        const isDhanush = existingUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+        sendJson(res, 200, {
+          session: {
+            token,
+            userId: existingUser.id,
+            name: existingUser.name,
+            email: existingUser.email,
+            role: existingUser.role,
+            avatar: existingUser.avatar || (isDhanush ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png'),
+            bio: existingUser.bio !== undefined ? existingUser.bio : (isDhanush ? 'Thick Thighs pretty eyes' : ''),
+            accountType: existingUser.accountType || 'Personal',
+            loggedInAt: now
+          }
+        });
+        return;
+      }
       sendJson(res, 409, { error: 'An account with this email already exists. Please sign in.' });
       return;
     }
@@ -600,9 +649,20 @@ async function handleApi(req, res, urlPath) {
 
 async function requestHandler(req, res) {
   let rawUrl = req.url || '/';
-  if (rawUrl === '/api' && req.headers['x-forwarded-url']) {
+  if (rawUrl.includes('__route__=')) {
+    try {
+      const parsed = new URL(rawUrl, 'http://localhost');
+      const route = parsed.searchParams.get('__route__');
+      if (route) {
+        parsed.searchParams.delete('__route__');
+        const remainingQuery = parsed.searchParams.toString();
+        rawUrl = route + (remainingQuery ? '?' + remainingQuery : '');
+      }
+    } catch {}
+  }
+  if ((rawUrl === '/api' || rawUrl.startsWith('/api?')) && req.headers['x-forwarded-url']) {
     rawUrl = req.headers['x-forwarded-url'];
-  } else if (rawUrl === '/api' && req.headers['x-matched-path']) {
+  } else if ((rawUrl === '/api' || rawUrl.startsWith('/api?')) && req.headers['x-matched-path']) {
     rawUrl = req.headers['x-matched-path'];
   }
   const urlPath = rawUrl.split('?')[0];

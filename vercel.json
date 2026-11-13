@@ -1,3 +1,13 @@
 {
-  "cleanUrls": true
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api?__route__=/api/$1"
+    },
+    {
+      "source": "/api",
+      "destination": "/api?__route__=/api"
+    }
+  ]
 }
