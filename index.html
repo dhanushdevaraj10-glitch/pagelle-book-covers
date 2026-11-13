@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PAGELLE BOOK COVERS — Curated Book Cover Gallery &amp; Community Showcase</title>
+  <script src="auth-guard.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- TOP BAND: Header + Hero Collage + Newsletter -->
+  <div class="top-band">
+    <header class="site-header container">
+      <a href="index.html" class="brand-logo" aria-label="Pagelle Book Covers Home">PAGELLE BOOK COVERS</a>
+      <nav class="header-nav" aria-label="Primary Navigation">
+        <a href="browse.html" class="nav-link">Browse</a>
+        <a href="collections.html" class="nav-link">Collections</a>
+        <a href="add-cover.html" class="nav-link nav-add-btn">+ Add Cover</a>
+      </nav>
+    </header>
+
+    <!-- HERO COLLAGE CLUSTER -->
+    <section class="hero-section container" aria-label="Book Covers Showcase">
+      <div class="hero-collage-stage">
+        <div class="hero-collage" id="heroCollage">
+          <div class="hero-center-card">
+            <img src="assets/stickers/sunflower-paper.png" class="hero-card-sticker sticker-sunflower" alt="" aria-hidden="true" />
+            <img src="assets/stickers/star-patch.png" class="hero-card-sticker sticker-star-inner sticker-star-2" alt="" aria-hidden="true" />
+            <img src="assets/stickers/star-patch.png" class="hero-card-sticker sticker-star-inner sticker-star-4" alt="" aria-hidden="true" />
+            <img src="assets/stickers/love-letter.png" class="hero-card-sticker sticker-letter" alt="" aria-hidden="true" />
+            <span class="hero-center-eyebrow">CURATED COLLECTION</span>
+            <h1 class="hero-center-title">Covers On<br />Display</h1>
+            <span class="hero-center-decor" aria-hidden="true"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- HERO VIEW ALL CTA -->
+      <div class="hero-subscribe">
+        <a href="browse.html" class="hero-view-all-bar" aria-label="View all book covers">
+          <span class="hero-view-all-text">VIEW ALL</span>
+          <span class="hero-view-all-arrow" aria-hidden="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </span>
+        </a>
+      </div>
+    </section>
+  </div>
+
+  <!-- MIDDLE DARK BAND: Carousel + Essential Collections -->
+  <main class="main-band">
+    <!-- SECTION 1: HORIZONTAL CAROUSEL -->
+    <section class="carousel-section" id="featured">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">Featured &amp; Upcoming Book Covers</h2>
+          <a href="browse.html" class="view-all-link">VIEW ALL <span class="arrow-glyph">&rsaquo;</span></a>
+        </div>
+      </div>
+
+      <div class="carousel-shell">
+        <button type="button" class="carousel-arrow carousel-arrow-left" id="carouselPrev" aria-label="Scroll left">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+
+        <div class="carousel-viewport" id="carouselViewport">
+          <div class="carousel-track" id="carouselTrack"></div>
+        </div>
+
+        <button type="button" class="carousel-arrow carousel-arrow-right" id="carouselNext" aria-label="Scroll right">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- SECTION 2: ESSENTIAL BOOK COVER COLLECTIONS -->
+    <section class="collections-section container" id="collections">
+      <div class="section-header">
+        <h2 class="section-title">Essential Book Cover Collections</h2>
+        <a href="collections.html" class="view-all-link">VIEW ALL <span class="arrow-glyph">&rsaquo;</span></a>
+      </div>
+
+      <div class="collections-grid" id="collectionsGrid"></div>
+    </section>
+  </main>
+
+  <!-- FOOTER BAND -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-subscribe-col">
+          <h3 class="footer-heading">Connect &amp; Share Book Covers</h3>
+          <div class="footer-email-row">
+            <a href="mailto:dhanushdevaraj10@gmail.com" class="footer-email-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+              <span>dhanushdevaraj10@gmail.com</span>
+            </a>
+            <button type="button" class="copy-email-btn" id="copyOwnerEmailBtn">Copy</button>
+          </div>
+          <form class="subscribe-form footer-form" id="footerContactForm" novalidate>
+            <input
+              type="text"
+              class="subscribe-input"
+              placeholder="Send a quick note to dhanushdevaraj10@gmail.com"
+              aria-label="Message to dhanushdevaraj10@gmail.com"
+            />
+            <button type="submit" class="subscribe-btn" aria-label="Send message">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </button>
+          </form>
+          <p class="subscribe-feedback" id="footerContactFeedback" aria-live="polite"></p>
+        </div>
+
+        <div class="footer-links-col">
+          <div class="footer-link-group">
+            <span class="footer-group-label">EXPLORE</span>
+            <div class="footer-links-row">
+              <a href="index.html">Home</a>
+              <a href="browse.html">Browse Covers</a>
+              <a href="collections.html">Collections</a>
+              <a href="add-cover.html">Submit Cover</a>
+            </div>
+          </div>
+          <div class="footer-link-group">
+            <span class="footer-group-label">GENRES</span>
+            <div class="footer-links-row">
+              <a href="browse.html?genre=Fiction">Fiction</a>
+              <a href="browse.html?genre=Sci-Fi%20%26%20Fantasy">Sci-Fi</a>
+              <a href="browse.html?genre=Mystery%20%26%20Noir">Noir</a>
+              <a href="browse.html?genre=Design%20%26%20Art">Design</a>
+              <a href="browse.html?genre=Classics">Classics</a>
+            </div>
+          </div>
+          <div class="footer-link-group">
+            <span class="footer-group-label">COMMUNITY &amp; CONTACT</span>
+            <div class="footer-links-row">
+              <a href="mailto:dhanushdevaraj10@gmail.com">dhanushdevaraj10@gmail.com</a>
+              <a href="browse.html?genre=Community">Community Picks</a>
+              <a href="browse.html?genre=Favorites">Saved Favorites</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom footer-bottom-row">
+        <p>Curated by Dhanush &middot; Reach out anytime at <a href="mailto:dhanushdevaraj10@gmail.com" class="footer-inline-mail">dhanushdevaraj10@gmail.com</a></p>
+        <p>&copy; 2026 PAGELLE BOOK COVERS &middot; Editorial &amp; Community Book Cover Gallery</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODAL: BOOK COVER DETAIL LIGHTBOX -->
+  <div class="modal-backdrop hidden" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle"></div>
+
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="home.js"></script>
+</body>
+</html>

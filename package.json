@@ -1,0 +1,8 @@
+{
+  "name": "pagelle-book-covers",
+  "version": "1.0.0",
+  "description": "PAGELLE BOOK COVERS — Curated book cover gallery and community showcase",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

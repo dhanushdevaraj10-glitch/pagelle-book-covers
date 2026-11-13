@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Profile — PAGELLE BOOK COVERS</title>
+  <script src="auth-guard.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="profile-page">
+  <!-- TOP BAND: Header + Profile Header -->
+  <div class="top-band subpage-top-band">
+    <header class="site-header container">
+      <a href="index.html" class="brand-logo" aria-label="Pagelle Book Covers Home">PAGELLE BOOK COVERS</a>
+      <nav class="header-nav" aria-label="Primary Navigation">
+        <a href="browse.html" class="nav-link">Browse</a>
+        <a href="collections.html" class="nav-link">Collections</a>
+        <a href="add-cover.html" class="nav-link nav-add-btn">+ Add Cover</a>
+      </nav>
+    </header>
+
+    <!-- USER PROFILE HERO -->
+    <section class="profile-hero container" aria-label="User Profile">
+      <!-- Back to My Profile Banner (shown when viewing someone else's profile) -->
+      <div class="profile-viewing-banner hidden" id="profileViewingBanner">
+        <a href="profile.html" class="profile-back-link" title="Return to your own profile">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>Back to My Profile</span>
+        </a>
+        <span class="profile-viewing-tag">Viewing Community Member</span>
+      </div>
+
+      <div class="profile-hero-card">
+        <div class="profile-avatar-large-wrap" id="profileAvatarWrap">
+          <img src="assets/default-avatar.png" id="profileAvatarImg" class="profile-avatar-large" alt="Profile avatar" />
+          <button type="button" class="profile-avatar-plus-btn" id="profileAvatarPlusBtn" title="Change Profile Picture (+)" aria-label="Change profile picture">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+          <input type="file" id="profileAvatarFileInput" accept="image/*" class="hidden" />
+        </div>
+
+        <div class="profile-name-group">
+          <h1 class="profile-display-name" id="profileDisplayName">User</h1>
+        </div>
+
+        <p class="profile-bio hidden" id="profileBio"></p>
+
+        <div class="profile-stats-row">
+          <button type="button" class="profile-stat-btn" id="openFollowersBtn" title="Click to view followers list">
+            <strong id="profileFollowers">0</strong> followers
+          </button>
+          <span class="profile-stat-dot">&bull;</span>
+          <button type="button" class="profile-stat-btn" id="openFollowingBtn" title="Click to view following list">
+            <strong id="profileFollowing">0</strong> following
+          </button>
+          <span class="profile-stat-dot">&bull;</span>
+          <span class="profile-stat-item"><strong id="profilePostsCount">0</strong> covers posted</span>
+        </div>
+
+        <div class="profile-actions-row">
+          <button type="button" class="profile-cta-btn profile-cta-follow" id="profileFollowBtn" aria-label="Follow user">
+            <svg class="follow-icon-plus" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="8.5" cy="7" r="4"></circle>
+              <line x1="20" y1="8" x2="20" y2="14"></line>
+              <line x1="23" y1="11" x2="17" y2="11"></line>
+            </svg>
+            <svg class="follow-icon-check hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span id="profileFollowLabel">Follow</span>
+          </button>
+
+          <button type="button" class="profile-cta-btn profile-cta-secondary" id="openExploreMembersBtn" title="Search and explore other profiles to follow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <span>Find Profiles</span>
+          </button>
+
+          <button type="button" class="profile-cta-btn profile-cta-secondary" id="profileEditBtn" title="Edit Name & Description">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            <span>Edit Profile</span>
+          </button>
+
+          <a href="admin.html" class="profile-cta-btn profile-cta-secondary hidden" id="profileAdminBtn" title="Site Administration Dashboard">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span style="font-weight: 700; color: var(--accent);">Admin</span>
+          </a>
+
+          <a href="add-cover.html" class="profile-cta-btn profile-cta-primary" id="profileCreateBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Create New Cover</span>
+          </a>
+
+          <button type="button" class="profile-cta-btn profile-cta-secondary" id="profileShareBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"></circle>
+              <circle cx="6" cy="12" r="3"></circle>
+              <circle cx="18" cy="19" r="3"></circle>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+            <span>Share Profile</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- MAIN BAND: USER'S POSTED COVERS GALLERY -->
+  <main class="main-band profile-main-band">
+    <div class="container">
+      <div class="profile-tabs-bar">
+        <button type="button" class="profile-tab-btn active" id="tabCreated">Created Covers (<span id="tabCreatedCount">0</span>)</button>
+        <button type="button" class="profile-tab-btn" id="tabSaved">Saved / Favorites (<span id="tabSavedCount">0</span>)</button>
+      </div>
+
+      <!-- TAB PANEL 1: CREATED COVERS -->
+      <section class="profile-gallery-section" id="panelCreated">
+        <div class="gallery-grid" id="userPostsGrid">
+          <!-- Populated dynamically -->
+        </div>
+        <div class="profile-empty-state hidden" id="userPostsEmpty">
+          <div class="empty-icon-wrap">
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></line>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+          </div>
+          <h3 class="empty-title">Nothing to show... yet!</h3>
+          <p class="empty-subtitle">Upload and publish book jackets you’ve designed or collected to build your personal showcase.</p>
+          <a href="add-cover.html" class="primary-add-btn">+ ADD YOUR FIRST BOOK COVER</a>
+        </div>
+      </section>
+
+      <!-- TAB PANEL 2: SAVED COVERS -->
+      <section class="profile-gallery-section hidden" id="panelSaved">
+        <div class="gallery-grid" id="userSavedGrid">
+          <!-- Populated dynamically -->
+        </div>
+        <div class="profile-empty-state hidden" id="userSavedEmpty">
+          <div class="empty-icon-wrap">
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </div>
+          <h3 class="empty-title">No saved book covers yet</h3>
+          <p class="empty-subtitle">Explore the archive and click "Save" on any book cover to collect it in your library.</p>
+          <a href="browse.html" class="primary-add-btn">BROWSE BOOK COVERS</a>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- MODAL: BOOK COVER DETAIL LIGHTBOX -->
+  <div class="modal-backdrop hidden" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle"></div>
+
+  <!-- EDIT PROFILE MODAL (Name, Description & Photo) -->
+  <div class="account-modal-overlay hidden" id="editProfileModalOverlay" role="dialog" aria-modal="true" aria-labelledby="editProfileTitle">
+    <div class="account-modal-card">
+      <div class="profile-modal-header">
+        <h3 class="account-modal-title" id="editProfileTitle">Edit Profile</h3>
+        <button type="button" class="profile-modal-close" id="editProfileCloseBtn" aria-label="Close modal">&times;</button>
+      </div>
+      <p class="account-modal-subtitle">Update your profile display name, bio description, and photo.</p>
+      <form class="account-modal-form" id="editProfileForm">
+        <div class="profile-edit-avatar-section">
+          <div class="profile-edit-avatar-preview-wrap">
+            <img src="assets/default-avatar.png" id="editModalAvatarPreview" class="profile-edit-avatar-preview" alt="Preview" />
+            <button type="button" class="profile-avatar-plus-btn profile-modal-plus-btn" id="editModalAvatarPickBtn" title="Choose new picture" aria-label="Choose new picture">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="profile-edit-avatar-hint">
+            <span class="profile-edit-avatar-label">Profile Photo</span>
+            <span class="profile-edit-avatar-sub">Click + to select an image from your computer</span>
+          </div>
+        </div>
+
+        <div class="account-modal-field">
+          <label for="editProfileNameInput">Display Name</label>
+          <input type="text" id="editProfileNameInput" maxlength="50" required placeholder="Your name (e.g. Dhanush)" />
+        </div>
+
+        <div class="account-modal-field">
+          <label for="editProfileBioInput">Profile Description / Bio</label>
+          <textarea id="editProfileBioInput" rows="3" maxlength="200" placeholder="Write a short description about yourself or your favorite books..."></textarea>
+          <div class="char-count-hint"><span id="bioCharCount">0</span>/200 characters</div>
+        </div>
+
+        <!-- Danger Zone: Delete Account Option -->
+        <div class="profile-modal-danger-zone">
+          <div class="danger-zone-text">
+            <span class="danger-zone-title">Delete Account</span>
+            <span class="danger-zone-desc">Permanently remove your account and all posted covers.</span>
+          </div>
+          <button type="button" class="profile-delete-account-btn" id="profileDeleteAccountBtn">Delete</button>
+        </div>
+
+        <div class="account-modal-actions">
+          <button type="button" class="account-modal-cancel-btn" id="editProfileCancelBtn">Cancel</button>
+          <button type="submit" class="account-modal-submit-btn">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- FOLLOWERS & FOLLOWING LIST MODAL -->
+  <div class="account-modal-overlay follow-modal-overlay hidden" id="followListModalOverlay" role="dialog" aria-modal="true" aria-labelledby="followModalTitle">
+    <div class="follow-modal-card">
+      <div class="follow-modal-header">
+        <div class="follow-modal-title-group">
+          <h3 class="follow-modal-title" id="followModalTitle">Community Network</h3>
+          <p class="follow-modal-sub" id="followModalSub">Connect with fellow book cover designers, illustrators, and collectors</p>
+        </div>
+        <button type="button" class="follow-modal-close-btn" id="followModalCloseBtn" aria-label="Close modal">&times;</button>
+      </div>
+
+      <div class="follow-modal-tabs">
+        <button type="button" class="follow-tab-btn active" id="tabExplore" data-tab="explore">
+          Find Profiles (<span id="modalExploreCount">0</span>)
+        </button>
+        <button type="button" class="follow-tab-btn" id="tabFollowers" data-tab="followers">
+          Followers (<span id="modalFollowersCount">0</span>)
+        </button>
+        <button type="button" class="follow-tab-btn" id="tabFollowing" data-tab="following">
+          Following (<span id="modalFollowingCount">0</span>)
+        </button>
+      </div>
+
+      <div class="follow-search-wrap">
+        <svg class="follow-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="followSearchInput" class="follow-search-input" placeholder="Search profiles by name, handle, or bio..." />
+        <button type="button" class="follow-search-clear hidden" id="followSearchClear" aria-label="Clear search">&times;</button>
+      </div>
+
+      <div class="follow-list-container" id="followListContainer" role="list">
+        <!-- User cards populated dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
+  <footer class="site-footer container">
+    <div class="footer-bottom-row">
+      <span class="footer-copyright">&copy; 2026 PAGELLE BOOK COVERS &bull; Community Archive</span>
+    </div>
+  </footer>
+
+  <script type="module" src="profile.js"></script>
+</body>
+</html>

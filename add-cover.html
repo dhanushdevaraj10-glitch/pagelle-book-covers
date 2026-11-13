@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Submit a Book Cover — PAGELLE BOOK COVERS</title>
+  <script src="auth-guard.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="top-band subpage-top-band">
+    <header class="site-header container">
+      <a href="index.html" class="brand-logo" aria-label="Pagelle Book Covers Home">PAGELLE BOOK COVERS</a>
+      <nav class="header-nav" aria-label="Primary Navigation">
+        <a href="browse.html" class="nav-link">Browse</a>
+        <a href="collections.html" class="nav-link">Collections</a>
+        <a href="add-cover.html" class="nav-link nav-add-btn active">+ Add Cover</a>
+      </nav>
+    </header>
+
+    <section class="subpage-hero container">
+      <div class="subpage-hero-row">
+        <div>
+          <span class="modal-eyebrow">COMMUNITY ARCHIVE</span>
+          <h1 class="subpage-title">Add Your Book Cover</h1>
+          <p class="subpage-subtitle">Upload your own cover artwork, paste an image link, or craft a custom jacket using the Cover Studio.</p>
+        </div>
+        <a href="browse.html" class="secondary-btn">Back to Browse</a>
+      </div>
+    </section>
+  </div>
+
+  <main class="main-band subpage-main-band">
+    <section class="container">
+      <!-- Success Banner shown after publishing -->
+      <div class="publish-success-banner hidden" id="publishSuccessBanner">
+        <div>
+          <strong id="publishSuccessTitle">Book cover published!</strong>
+          <span>Your cover is now live in the hero showcase, featured carousel, and browse gallery.</span>
+        </div>
+        <div class="publish-success-actions">
+          <a href="browse.html" class="primary-add-btn">View in Browse</a>
+          <a href="index.html" class="secondary-btn">Go to Home</a>
+        </div>
+      </div>
+
+      <div class="submit-page-layout">
+        <form class="add-cover-form submit-form-card" id="addCoverForm">
+          <div class="source-tabs" role="tablist">
+            <button type="button" class="source-tab active" data-source-mode="upload">Upload Image</button>
+            <button type="button" class="source-tab" data-source-mode="studio">Cover Studio</button>
+            <button type="button" class="source-tab" data-source-mode="url">Image URL</button>
+          </div>
+
+          <div class="source-panel" id="panelUpload">
+            <label class="upload-dropzone" id="uploadDropzone">
+              <input type="file" id="coverFileInput" accept="image/*" hidden />
+              <div class="dropzone-inner">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span class="dropzone-title" id="uploadFileName">Drop your cover image here or click to browse</span>
+                <span class="dropzone-sub">PNG, JPG, WEBP or SVG &middot; Portrait 2:3 recommended</span>
+              </div>
+            </label>
+          </div>
+
+          <div class="source-panel hidden" id="panelStudio">
+            <div class="studio-grid">
+              <div class="form-field">
+                <label for="studioTemplate">Visual Style</label>
+                <select id="studioTemplate">
+                  <option value="sunburst">Mid-Century Sunburst</option>
+                  <option value="bauhaus">Swiss / Bauhaus Grid</option>
+                  <option value="noir">Midnight Noir</option>
+                  <option value="cosmic">Celestial Orbit</option>
+                  <option value="botanical">Botanical Minimal</option>
+                  <option value="editorial">Classic Tri-Band</option>
+                  <option value="brutalist">Bold Display Type</option>
+                  <option value="archway">Desert Archway</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="studioPalette">Color Palette</label>
+                <select id="studioPalette">
+                  <option value="crimson">Crimson &amp; Cream</option>
+                  <option value="midnight">Obsidian &amp; Gold</option>
+                  <option value="forest">Deep Forest &amp; Sage</option>
+                  <option value="cobalt">Cobalt &amp; Tangerine</option>
+                  <option value="terracotta">Terracotta &amp; Sand</option>
+                  <option value="plum">Plum &amp; Rose</option>
+                  <option value="cream">Warm Cream &amp; Rust</option>
+                  <option value="ochre">Ochre &amp; Ink</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="source-panel hidden" id="panelUrl">
+            <div class="form-field">
+              <label for="coverUrlInput">Cover Image URL</label>
+              <input type="url" id="coverUrlInput" placeholder="https://example.com/my-book-cover.jpg" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-field">
+              <label for="bookTitleInput">Book Title *</label>
+              <input type="text" id="bookTitleInput" placeholder="e.g. The Cartographer's Dream" required maxlength="80" />
+            </div>
+            <div class="form-field">
+              <label for="bookAuthorInput">Author Name *</label>
+              <input type="text" id="bookAuthorInput" placeholder="e.g. Elena Vance" required maxlength="60" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-field">
+              <label for="bookGenreInput">Genre</label>
+              <select id="bookGenreInput">
+                <option value="Fiction">Fiction</option>
+                <option value="Sci-Fi & Fantasy">Sci-Fi &amp; Fantasy</option>
+                <option value="Mystery & Noir">Mystery &amp; Noir</option>
+                <option value="Design & Art">Design &amp; Art</option>
+                <option value="Classics">Classics</option>
+                <option value="Poetry">Poetry</option>
+                <option value="Non-Fiction">Non-Fiction</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="bookYearInput">Year &amp; Designer</label>
+              <div class="inline-pair">
+                <input type="text" id="bookYearInput" placeholder="2026" maxlength="4" />
+                <input type="text" id="bookDesignerInput" placeholder="Cover Designer" maxlength="50" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="bookDescInput">About the Cover / Synopsis</label>
+            <textarea id="bookDescInput" rows="3" placeholder="Describe the cover design concept, typography, or book story..." maxlength="280"></textarea>
+          </div>
+
+          <p class="form-error hidden" id="addFormError"></p>
+
+          <div class="form-actions">
+            <a href="browse.html" class="secondary-btn">Cancel</a>
+            <button type="submit" class="primary-add-btn">Publish Book Cover</button>
+          </div>
+        </form>
+
+        <aside class="add-preview-pane submit-preview-sticky">
+          <span class="preview-label">LIVE COVER PREVIEW</span>
+          <div class="preview-card">
+            <div class="preview-cover-frame" id="livePreviewFrame"></div>
+            <div class="preview-meta">
+              <div class="book-card-title" id="livePreviewTitle">The Cartographer's Dream</div>
+              <div class="book-card-author" id="livePreviewAuthor">by Elena Vance</div>
+              <span class="detail-genre-badge preview-genre-pill" id="livePreviewGenre">Fiction</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- User's Submitted Covers Section -->
+      <section class="community-submissions-section" id="mySubmissionsSection">
+        <div class="section-header">
+          <h2 class="section-title">Your Submitted Book Covers</h2>
+          <span class="cover-count-pill" id="mySubmissionsCount">0 Covers</span>
+        </div>
+        <div class="gallery-grid" id="mySubmissionsGrid"></div>
+        <div class="gallery-empty hidden" id="mySubmissionsEmpty">
+          <p>You haven't submitted any book covers yet. Use the form above to publish your first cover!</p>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-subscribe-col">
+          <h3 class="footer-heading">Connect &amp; Share Book Covers</h3>
+          <div class="footer-email-row">
+            <a href="mailto:dhanushdevaraj10@gmail.com" class="footer-email-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+              <span>dhanushdevaraj10@gmail.com</span>
+            </a>
+            <button type="button" class="copy-email-btn" id="copyOwnerEmailBtn">Copy</button>
+          </div>
+          <form class="subscribe-form footer-form" id="footerContactForm" novalidate>
+            <input type="text" class="subscribe-input" placeholder="Send a quick note to dhanushdevaraj10@gmail.com" aria-label="Message to dhanushdevaraj10@gmail.com" />
+            <button type="submit" class="subscribe-btn" aria-label="Send message">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </button>
+          </form>
+          <p class="subscribe-feedback" id="footerContactFeedback" aria-live="polite"></p>
+        </div>
+
+        <div class="footer-links-col">
+          <div class="footer-link-group">
+            <span class="footer-group-label">EXPLORE</span>
+            <div class="footer-links-row">
+              <a href="index.html">Home</a>
+              <a href="browse.html">Browse Covers</a>
+              <a href="collections.html">Collections</a>
+              <a href="add-cover.html">Submit Cover</a>
+            </div>
+          </div>
+          <div class="footer-link-group">
+            <span class="footer-group-label">GENRES</span>
+            <div class="footer-links-row">
+              <a href="browse.html?genre=Fiction">Fiction</a>
+              <a href="browse.html?genre=Sci-Fi%20%26%20Fantasy">Sci-Fi</a>
+              <a href="browse.html?genre=Mystery%20%26%20Noir">Noir</a>
+              <a href="browse.html?genre=Design%20%26%20Art">Design</a>
+              <a href="browse.html?genre=Classics">Classics</a>
+            </div>
+          </div>
+          <div class="footer-link-group">
+            <span class="footer-group-label">COMMUNITY &amp; CONTACT</span>
+            <div class="footer-links-row">
+              <a href="mailto:dhanushdevaraj10@gmail.com">dhanushdevaraj10@gmail.com</a>
+              <a href="browse.html?genre=Community">Community Picks</a>
+              <a href="browse.html?genre=Favorites">Saved Favorites</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom footer-bottom-row">
+        <p>Curated by Dhanush &middot; Reach out anytime at <a href="mailto:dhanushdevaraj10@gmail.com" class="footer-inline-mail">dhanushdevaraj10@gmail.com</a></p>
+        <p>&copy; 2026 PAGELLE BOOK COVERS &middot; Editorial &amp; Community Book Cover Gallery</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODAL: BOOK COVER DETAIL LIGHTBOX -->
+  <div class="modal-backdrop hidden" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <div class="modal-panel detail-modal-panel">
+      <button type="button" class="modal-close" id="closeDetailModal" aria-label="Close detail">&times;</button>
+      <div class="detail-layout">
+        <div class="detail-artwork-wrap">
+          <img id="detailImage" src="" alt="" class="detail-cover-img" />
+        </div>
+        <div class="detail-info">
+          <div class="detail-badges">
+            <span class="detail-genre-badge" id="detailGenre">Fiction</span>
+            <span class="detail-community-badge hidden" id="detailCommunityBadge">Community Added</span>
+          </div>
+          <h2 class="detail-title" id="detailTitle">Book Title</h2>
+          <p class="detail-author" id="detailAuthor">by Author Name</p>
+          <div class="detail-meta-grid">
+            <div class="detail-meta-item">
+              <span class="meta-label">YEAR</span>
+              <span class="meta-val" id="detailYear">2025</span>
+            </div>
+            <div class="detail-meta-item">
+              <span class="meta-label">DESIGNER</span>
+              <span class="meta-val" id="detailDesigner">Editorial Studio</span>
+            </div>
+          </div>
+          <p class="detail-desc" id="detailDesc"></p>
+          <div class="detail-actions">
+            <button type="button" class="like-btn" id="detailLikeBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+              </svg>
+              <span id="detailLikeLabel">Save Favorite</span>
+            </button>
+            <button type="button" class="danger-btn hidden" id="detailDeleteBtn">Remove Cover</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="add-cover.js"></script>
+</body>
+</html>
