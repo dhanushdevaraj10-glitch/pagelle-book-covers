@@ -173,11 +173,90 @@ function getClientIp(req) {
   return raw === '::1' ? '127.0.0.1' : raw.replace('::ffff:', '');
 }
 
+// Security: Rate limiting and session management
+const failedLogins = new Map(); // ip:email -> { count, firstTime, blockedUntil }
+const signupLimits = new Map(); // ip -> { count, windowStart }
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function checkLoginRateLimit(ip, email) {
+  const now = Date.now();
+  const key = `${ip}:${email}`;
+  const record = failedLogins.get(key);
+  if (!record) return { allowed: true };
+  if (record.blockedUntil && record.blockedUntil > now) {
+    const remainingSec = Math.ceil((record.blockedUntil - now) / 1000);
+    return { allowed: false, remainingSec };
+  }
+  if (record.blockedUntil && record.blockedUntil <= now) {
+    failedLogins.delete(key);
+    return { allowed: true };
+  }
+  if (now - record.firstTime > 15 * 60 * 1000) {
+    failedLogins.delete(key);
+    return { allowed: true };
+  }
+  return { allowed: true };
+}
+
+function recordFailedLogin(ip, email) {
+  const now = Date.now();
+  const key = `${ip}:${email}`;
+  const record = failedLogins.get(key) || { count: 0, firstTime: now };
+  record.count += 1;
+  if (record.count >= 5) {
+    record.blockedUntil = now + 5 * 60 * 1000; // Lock for 5 mins after 5 failed attempts
+  }
+  failedLogins.set(key, record);
+}
+
+function clearFailedLogin(ip, email) {
+  failedLogins.delete(`${ip}:${email}`);
+}
+
+function sanitizeText(str, maxLen = 300) {
+  return String(str || '')
+    .trim()
+    .replace(/[<>]/g, '')
+    .slice(0, maxLen);
+}
+
+function isSafeImageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const clean = url.trim();
+  if (
+    clean.startsWith('data:image/jpeg') ||
+    clean.startsWith('data:image/png') ||
+    clean.startsWith('data:image/webp') ||
+    clean.startsWith('data:image/gif') ||
+    clean.startsWith('data:image/svg+xml')
+  ) {
+    if (clean.includes('<script') || clean.includes('javascript:') || clean.includes('onload=')) {
+      return false;
+    }
+    return true;
+  }
+  if (clean.startsWith('assets/') && !clean.includes('..')) {
+    return true;
+  }
+  if (clean.startsWith('https://')) {
+    return true;
+  }
+  return false;
+}
+
 function getAuthenticatedSession(req, store) {
   const token = req.headers['x-auth-token'];
-  if (!token || typeof token !== 'string') return null;
+  if (!token || typeof token !== 'string' || token.length < 20) return null;
   const session = store.sessions[token];
   if (!session) return null;
+
+  const sessionTime = new Date(session.createdAt || 0).getTime();
+  if (Date.now() - sessionTime > SESSION_TTL_MS) {
+    delete store.sessions[token];
+    saveStore(store);
+    return null;
+  }
+
   const user = store.users.find((u) => u.id === session.userId);
   if (!user || !user.active) return null;
   return { token, user };
@@ -224,12 +303,22 @@ async function handleApi(req, res, urlPath) {
   const store = ensureStore();
 
   if (urlPath === '/api/auth/login' && req.method === 'POST') {
+    const ip = getClientIp(req);
     const body = await readJsonBody(req);
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
 
+    const limit = checkLoginRateLimit(ip, email);
+    if (!limit.allowed) {
+      sendJson(res, 429, {
+        error: `Too many failed attempts. For your security, please wait ${limit.remainingSec} seconds before trying again.`
+      });
+      return;
+    }
+
     const user = store.users.find((u) => u.email.toLowerCase() === email);
     if (!user || !verifyPassword(password, user.passwordHash)) {
+      recordFailedLogin(ip, email);
       recordLoginEvent(store, req, {
         user: user || { id: null, name: email || 'Unknown', email: email || '—', role: 'guest' },
         action: 'Sign In',
@@ -239,6 +328,8 @@ async function handleApi(req, res, urlPath) {
       sendJson(res, 401, { error: 'Invalid email or password.' });
       return;
     }
+
+    clearFailedLogin(ip, email);
 
     if (user.active === false) {
       recordLoginEvent(store, req, { user, action: 'Sign In', status: 'Blocked' });
@@ -279,8 +370,20 @@ async function handleApi(req, res, urlPath) {
   }
 
   if (urlPath === '/api/auth/signup' && req.method === 'POST') {
+    const ip = getClientIp(req);
+    const nowMs = Date.now();
+    const signupRecord = signupLimits.get(ip);
+    if (signupRecord && nowMs - signupRecord.windowStart < 60 * 60 * 1000 && signupRecord.count >= 10) {
+      sendJson(res, 429, { error: 'Too many account creation requests from this network. Please try again later.' });
+      return;
+    }
+    signupLimits.set(ip, {
+      count: signupRecord && nowMs - signupRecord.windowStart < 60 * 60 * 1000 ? signupRecord.count + 1 : 1,
+      windowStart: signupRecord && nowMs - signupRecord.windowStart < 60 * 60 * 1000 ? signupRecord.windowStart : nowMs
+    });
+
     const body = await readJsonBody(req);
-    const name = String(body.name || '').trim();
+    const name = sanitizeText(body.name || '', 60);
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
 
@@ -600,15 +703,20 @@ async function handleApi(req, res, urlPath) {
       sendJson(res, 400, { error: 'Title, author, and image are required.' });
       return;
     }
+    const cleanImage = String(body.image || '').trim();
+    if (!isSafeImageUrl(cleanImage)) {
+      sendJson(res, 400, { error: 'Invalid or unsafe image format. Please upload or link a valid image.' });
+      return;
+    }
     const cover = {
-      id: body.id || `user-${Date.now()}`,
-      title: String(body.title).slice(0, 80),
-      author: String(body.author).slice(0, 60),
-      genre: String(body.genre || 'Fiction'),
-      year: String(body.year || new Date().getFullYear()),
-      designer: String(body.designer || auth.user.name),
-      desc: String(body.desc || ''),
-      image: String(body.image),
+      id: body.id && /^user-[a-zA-Z0-9_-]+$/.test(body.id) ? body.id : `user-${Date.now()}`,
+      title: sanitizeText(body.title, 80),
+      author: sanitizeText(body.author, 60),
+      genre: sanitizeText(body.genre || 'Fiction', 30),
+      year: sanitizeText(body.year || new Date().getFullYear(), 10),
+      designer: sanitizeText(body.designer || auth.user.name, 60),
+      desc: sanitizeText(body.desc || '', 500),
+      image: cleanImage,
       isCommunity: true,
       submittedByName: auth.user.name,
       submittedByEmail: auth.user.email,
@@ -648,6 +756,13 @@ async function handleApi(req, res, urlPath) {
 }
 
 async function requestHandler(req, res) {
+  // Global security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
   let rawUrl = req.url || '/';
   if (rawUrl.includes('__route__=')) {
     try {
