@@ -22,10 +22,12 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html {
   scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
 }
 
 body {
@@ -35,7 +37,58 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+}
+
+/* Hardware-accelerated smooth rendering */
+img {
+  content-visibility: auto;
+}
+
+/* Tactile interactive button & card transitions */
+button,
+.nav-link,
+.primary-add-btn,
+.secondary-btn,
+.hero-view-all-bar,
+.view-all-link,
+.carousel-card,
+.book-card-btn,
+.collection-card,
+.fan-cover,
+.mobile-bottom-nav-item {
+  will-change: transform, box-shadow;
+  transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.2s ease,
+              border-color 0.2s ease,
+              opacity 0.2s ease;
+}
+
+button:active:not(:disabled),
+.primary-add-btn:active,
+.secondary-btn:active,
+.mobile-bottom-nav-item:active {
+  transform: scale(0.96) !important;
+}
+
+/* Book covers: luxury spring hover lift */
+.carousel-card:hover,
+.book-card-btn:hover {
+  transform: translateY(-8px) scale(1.025);
+  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(201, 174, 140, 0.3);
+  z-index: 6;
+}
+
+/* Silky momentum scrolling for touch carousels and lists */
+.carousel-viewport,
+.gallery-grid,
+.collections-grid,
+.mobile-scroll-container,
+.genre-tabs-wrap {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
 
 /* Sleek, luxury-matched scrollbars throughout the application */

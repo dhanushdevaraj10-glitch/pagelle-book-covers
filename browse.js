@@ -117,9 +117,13 @@ async function init() {
   renderGenreTabs();
   renderGallery();
 
+  let searchDebounceTimer = null;
   searchInputEl.addEventListener('input', (e) => {
     state.searchQuery = e.target.value;
-    renderGallery();
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      renderGallery();
+    }, 60);
   });
 
   sortSelectEl.addEventListener('change', (e) => {

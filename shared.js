@@ -136,6 +136,7 @@ export function createBookCardElement(book, onSelect, className = 'book-card-btn
   img.src = book.image;
   img.alt = `${book.title} by ${book.author}`;
   img.loading = 'lazy';
+  img.decoding = 'async';
   thumb.appendChild(img);
 
   const titleEl = document.createElement('div');
@@ -151,6 +152,58 @@ export function createBookCardElement(book, onSelect, className = 'book-card-btn
   btn.appendChild(authorEl);
 
   return btn;
+}
+
+// Instant Page Prefetcher for silky 0ms navigation
+export function initInstantPrefetch() {
+  if (typeof window === 'undefined' || window.__prefetcherInitialized) return;
+  window.__prefetcherInitialized = true;
+  const prefetched = new Set();
+
+  function prefetchUrl(url) {
+    if (!url || prefetched.has(url)) return;
+    try {
+      const u = new URL(url, window.location.href);
+      if (u.origin !== window.location.origin) return;
+      const path = u.pathname.toLowerCase();
+      if (
+        path.startsWith('/api/') ||
+        path.endsWith('.jpg') ||
+        path.endsWith('.png') ||
+        path.endsWith('.webp') ||
+        path.endsWith('.svg')
+      ) {
+        return;
+      }
+      prefetched.add(u.pathname);
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.href = u.pathname;
+      document.head.appendChild(link);
+    } catch {}
+  }
+
+  document.addEventListener(
+    'mouseover',
+    (e) => {
+      const a = e.target.closest('a');
+      if (a && a.href && !a.href.startsWith('mailto:') && !a.href.startsWith('#') && !a.href.startsWith('javascript:')) {
+        prefetchUrl(a.href);
+      }
+    },
+    { passive: true }
+  );
+
+  document.addEventListener(
+    'touchstart',
+    (e) => {
+      const a = e.target.closest('a');
+      if (a && a.href && !a.href.startsWith('mailto:') && !a.href.startsWith('#') && !a.href.startsWith('javascript:')) {
+        prefetchUrl(a.href);
+      }
+    },
+    { passive: true }
+  );
 }
 
 export const OWNER_EMAIL = 'dhanushdevaraj10@gmail.com';
@@ -606,6 +659,7 @@ export function openConfirmModal({
 }
 
 export function initAuthHeader() {
+  initInstantPrefetch();
   const nav = document.querySelector('.header-nav');
   if (!nav) return;
   const header = nav.closest('.site-header') || nav.parentNode;

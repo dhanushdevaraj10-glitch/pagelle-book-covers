@@ -79,6 +79,7 @@ function renderHeroCollage() {
     const img = document.createElement('img');
     img.src = book.image;
     img.alt = `${book.title} cover`;
+    img.decoding = 'async';
     item.appendChild(img);
     heroCollageEl.appendChild(item);
   });
@@ -125,6 +126,8 @@ function renderCollections() {
         const img = document.createElement('img');
         img.src = book.image;
         img.alt = book.title;
+        img.loading = 'lazy';
+        img.decoding = 'async';
         mini.appendChild(img);
         fan.appendChild(mini);
       });

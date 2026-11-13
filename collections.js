@@ -42,6 +42,8 @@ function renderOverview() {
         const img = document.createElement('img');
         img.src = book.image;
         img.alt = book.title;
+        img.loading = 'lazy';
+        img.decoding = 'async';
         mini.appendChild(img);
         fan.appendChild(mini);
       });
