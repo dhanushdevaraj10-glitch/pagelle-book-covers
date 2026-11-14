@@ -11,6 +11,29 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- LUXURY PAGELLE INITIAL LOADING SCREEN -->
+  <div id="pagelleLoader" class="pagelle-loader-screen" aria-hidden="true">
+    <div class="pagelle-loader-content">
+      <div class="pagelle-loader-emblem">
+        <div class="pagelle-loader-ring"></div>
+        <div class="pagelle-loader-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+        </div>
+      </div>
+      <div class="pagelle-loader-brand">
+        <span class="pagelle-loader-title">PAGELLE BOOK COVERS</span>
+        <span class="pagelle-loader-subtitle">Curating timeless stories &amp; covers</span>
+      </div>
+      <div class="pagelle-loader-bar-wrap">
+        <div class="pagelle-loader-bar-fill" id="pagelleLoaderFill"></div>
+      </div>
+    </div>
+  </div>
+  <div id="pagelleTopProgress" class="pagelle-top-progress-bar" aria-hidden="true"></div>
+  <script src="loading-screen.js?v=2.0.2"></script>
   <div class="top-band subpage-top-band">
     <header class="site-header container">
       <a href="index.html" class="brand-logo" aria-label="Pagelle Book Covers Home">PAGELLE BOOK COVERS</a>
