@@ -73,12 +73,14 @@ button:active:not(:disabled),
   transform: scale(0.96) !important;
 }
 
-/* Book covers: luxury spring hover lift */
-.carousel-card:hover,
-.book-card-btn:hover {
-  transform: translateY(-8px) scale(1.025);
-  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(201, 174, 140, 0.3);
-  z-index: 6;
+/* Book covers: luxury spring hover lift (Desktop Mouse Only) */
+@media (hover: hover) and (pointer: fine) {
+  .carousel-card:hover,
+  .book-card-btn:hover {
+    transform: translateY(-8px) scale(1.025);
+    box-shadow: 0 20px 42px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(201, 174, 140, 0.3);
+    z-index: 6;
+  }
 }
 
 /* Silky momentum scrolling for touch carousels and lists */
@@ -195,7 +197,7 @@ button {
     radial-gradient(ellipse 76% 72% at 50% 48%, rgba(16, 14, 12, 0.06) 0%, rgba(14, 14, 14, 0.42) 100%),
     url('assets/hero-bg.jpg');
   background-size: cover;
-  background-position: center center;
+  background-position: center top;
   background-repeat: no-repeat;
   filter: contrast(1.1) saturate(1.16) brightness(0.98);
   pointer-events: none;
@@ -813,19 +815,44 @@ button {
   object-position: center;
 }
 
-/* HOVER: SHOW BIG EFFECT (ENTIRE CARD SCALES PROPORTIONALLY WITHOUT CROPPING) */
-.book-card-btn:hover,
-.carousel-card:hover {
-  transform: translateY(-10px) scale(1.08);
-  z-index: 20;
+/* HOVER: SHOW BIG EFFECT (DESKTOP MOUSE ONLY - PREVENTS STICKY ZOOM ON MOBILE TOUCH/SCROLL) */
+@media (hover: hover) and (pointer: fine) {
+  .book-card-btn:hover,
+  .carousel-card:hover {
+    transform: translateY(-10px) scale(1.08);
+    z-index: 20;
+  }
+
+  .book-card-btn:hover .book-cover-thumb,
+  .carousel-card:hover .book-cover-thumb {
+    border-color: rgba(201, 174, 140, 0.5);
+    box-shadow:
+      0 28px 65px rgba(0, 0, 0, 0.92),
+      0 0 32px rgba(201, 174, 140, 0.32);
+  }
+
+  .book-card-btn:hover .book-card-title,
+  .carousel-card:hover .book-card-title {
+    color: #ffffff;
+    background-color: rgba(26, 23, 20, 0.96);
+  }
+
+  .book-card-btn:hover .book-card-author,
+  .carousel-card:hover .book-card-author {
+    color: var(--accent);
+    background-color: rgba(26, 23, 20, 0.96);
+  }
 }
 
-.book-card-btn:hover .book-cover-thumb,
-.carousel-card:hover .book-cover-thumb {
-  border-color: rgba(201, 174, 140, 0.5);
-  box-shadow:
-    0 28px 65px rgba(0, 0, 0, 0.92),
-    0 0 32px rgba(201, 174, 140, 0.32);
+/* Touchscreens: Never scale or change size on touch or scrolling */
+@media (hover: none), (pointer: coarse) {
+  .book-card-btn:hover,
+  .carousel-card:hover,
+  .book-card-btn:active,
+  .carousel-card:active {
+    transform: none !important;
+    z-index: 1 !important;
+  }
 }
 
 .book-card-title {
@@ -864,16 +891,18 @@ button {
   transition: color 0.22s ease, background-color 0.22s ease;
 }
 
-.book-card-btn:hover .book-card-title,
-.carousel-card:hover .book-card-title {
-  color: #ffffff;
-  background-color: rgba(26, 23, 20, 0.96);
-}
+@media (hover: hover) and (pointer: fine) {
+  .book-card-btn:hover .book-card-title,
+  .carousel-card:hover .book-card-title {
+    color: #ffffff;
+    background-color: rgba(26, 23, 20, 0.96);
+  }
 
-.book-card-btn:hover .book-card-author,
-.carousel-card:hover .book-card-author {
-  color: var(--accent);
-  background-color: rgba(26, 23, 20, 0.96);
+  .book-card-btn:hover .book-card-author,
+  .carousel-card:hover .book-card-author {
+    color: var(--accent);
+    background-color: rgba(26, 23, 20, 0.96);
+  }
 }
 
 .community-pill {
@@ -4100,14 +4129,14 @@ button {
     border-radius: 999px;
   }
 
-  /* Full-viewport hero fold covering till the end of the initial screen */
+  /* Stable viewport hero fold: uses 100svh so height and background NEVER shift or zoom on mobile scroll */
   .top-band:not(.subpage-top-band) {
     min-height: 100vh;
-    min-height: 100dvh;
+    min-height: 100svh;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    padding-bottom: 84px;
+    padding-bottom: 74px;
   }
 
   .top-band:not(.subpage-top-band) .hero-section {
@@ -4180,8 +4209,37 @@ button {
     padding: 0 16px;
   }
 
+  .carousel-track {
+    gap: 14px;
+    padding: 12px 16px 20px;
+  }
+
   .carousel-card {
-    flex: 0 0 135px;
+    flex: 0 0 110px;
+    width: 110px;
+    max-width: 110px;
+    transform: none !important;
+  }
+
+  .carousel-card:hover,
+  .carousel-card:active,
+  .carousel-card:focus,
+  .book-card-btn:hover,
+  .book-card-btn:active,
+  .book-card-btn:focus {
+    transform: none !important;
+  }
+
+  .carousel-card .book-card-title,
+  .book-card-btn .book-card-title {
+    font-size: 10.5px;
+    padding: 5px 6px 2px;
+  }
+
+  .carousel-card .book-card-author,
+  .book-card-btn .book-card-author {
+    font-size: 9.5px;
+    padding: 1px 6px 4px;
   }
 
   .carousel-arrow {
@@ -5673,9 +5731,9 @@ button {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    padding: 6px 8px;
-    background: linear-gradient(135deg, rgba(32, 22, 16, 0.45), rgba(16, 11, 8, 0.4));
+    gap: 6px;
+    padding: 5px 8px;
+    background: linear-gradient(135deg, rgba(32, 22, 16, 0.55), rgba(16, 11, 8, 0.5));
     backdrop-filter: blur(28px) saturate(180%);
     -webkit-backdrop-filter: blur(28px) saturate(180%);
     border: 1px solid rgba(201, 174, 140, 0.35);
@@ -5689,9 +5747,9 @@ button {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 58px;
-    height: 50px;
-    border-radius: 18px;
+    width: 52px;
+    height: 46px;
+    border-radius: 16px;
     background: transparent;
     border: 1px solid transparent;
     color: rgba(237, 231, 220, 0.7);
