@@ -16,6 +16,7 @@ import {
   COMMUNITY_MEMBERS,
   getAllCommunityMembers,
   syncCommunityMembersFromServer,
+  syncNetworkFromServer,
   getFollowingUserIds,
   isFollowingUser,
   toggleFollowUser,
@@ -23,7 +24,7 @@ import {
   getFollowingForUser,
   getUserProfileByIdOrEmail,
   getMemberPosts
-} from './shared.js?v=2.0.2';
+} from './shared.js?v=2.0.3';
 
 function escapeHtml(str) {
   return String(str || '')
@@ -49,15 +50,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   let targetProfile = targetParam ? getUserProfileByIdOrEmail(targetParam) : null;
   const activeUser = targetProfile || session;
 
-  // Sync community members in the background
-  syncCommunityMembersFromServer().then(() => {
+  // Sync community members & network in the background / upfront
+  try {
+    await Promise.allSettled([
+      syncCommunityMembersFromServer(),
+      syncNetworkFromServer()
+    ]);
     if (targetParam && !targetProfile) {
-      const refreshed = getUserProfileByIdOrEmail(targetParam);
-      if (refreshed) {
-        window.location.reload();
-      }
+      targetProfile = getUserProfileByIdOrEmail(targetParam);
     }
-  }).catch(() => {});
+  } catch {}
 
   const isSelf = !targetParam || (
     (activeUser.email && activeUser.email.toLowerCase() === session.email.toLowerCase()) ||
@@ -205,7 +207,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     followersEl.textContent = String(followers.length);
     if (isSelf) {
       const followingIds = getFollowingUserIds();
-      followingEl.textContent = String(followingIds.length);
+      const followingList = getFollowingForUser(activeUser);
+      const count = Math.max(followingIds.length, followingList.length);
+      followingEl.textContent = String(count);
     } else {
       const following = getFollowingForUser(activeUser);
       followingEl.textContent = String(following.length);
@@ -215,22 +219,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateFollowButtonUI();
 
   if (followBtn) {
-    followBtn.addEventListener('click', () => {
+    followBtn.addEventListener('click', async () => {
       if (isSelf) return; // Prevent any self-follow
-      const targetId = activeUser.id || activeUser.userId;
+      const targetId = activeUser.id || activeUser.userId || activeUser.email;
       if (!targetId) return;
-      const nowFollowing = toggleFollowUser(targetId);
-      updateFollowButtonUI();
+      followBtn.disabled = true;
+      try {
+        const nowFollowing = await toggleFollowUser(targetId);
+        updateFollowButtonUI();
 
-      if (nowFollowing) {
-        showToast(`You are now following ${activeUser.name || 'this member'}!`);
-      } else {
-        showToast(`Unfollowed ${activeUser.name || 'this member'}.`);
-      }
+        if (nowFollowing) {
+          showToast(`You are now following ${activeUser.name || 'this member'}!`);
+        } else {
+          showToast(`Unfollowed ${activeUser.name || 'this member'}.`);
+        }
 
-      // If follow modal is currently open, refresh it live
-      if (followListModalOverlay && !followListModalOverlay.classList.contains('hidden')) {
-        renderFollowList();
+        // If follow modal is currently open, refresh it live
+        if (followListModalOverlay && !followListModalOverlay.classList.contains('hidden')) {
+          renderFollowList();
+        }
+      } finally {
+        followBtn.disabled = false;
       }
     });
   }
@@ -479,9 +488,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!followListModalOverlay) return;
     activeFollowTab = tabName;
 
-    // Sync any registered community members from backend
-    syncCommunityMembersFromServer().then(() => {
+    // Sync any registered community members & network from backend
+    Promise.allSettled([
+      syncCommunityMembersFromServer(),
+      syncNetworkFromServer()
+    ]).then(() => {
       renderFollowList();
+      updateFollowersCountDisplay();
     }).catch(() => {});
 
     const displayName = activeUser.name || 'User';
@@ -663,20 +676,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Wire inline follow toggle button
       const inlineBtn = card.querySelector('[data-follow-member-id]');
       if (inlineBtn) {
-        inlineBtn.addEventListener('click', (e) => {
+        inlineBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
           const memberId = inlineBtn.getAttribute('data-follow-member-id');
           const memberName = inlineBtn.getAttribute('data-follow-member-name') || 'User';
-          const nowFollowing = toggleFollowUser(memberId);
+          inlineBtn.disabled = true;
+          try {
+            const nowFollowing = await toggleFollowUser(memberId);
 
-          if (nowFollowing) {
-            showToast(`You are now following ${memberName}!`);
-          } else {
-            showToast(`Unfollowed ${memberName}.`);
+            if (nowFollowing) {
+              showToast(`You are now following ${memberName}!`);
+            } else {
+              showToast(`Unfollowed ${memberName}.`);
+            }
+
+            updateFollowButtonUI();
+            renderFollowList();
+          } finally {
+            inlineBtn.disabled = false;
           }
-
-          updateFollowButtonUI();
-          renderFollowList();
         });
       }
 
@@ -787,6 +805,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       showToast('Profile link copied to clipboard!');
     } catch {
       showToast('Share: ' + url);
+    }
+  });
+
+  // Real-time network sync event listeners
+  window.addEventListener('pagelle:network:changed', () => {
+    updateFollowersCountDisplay();
+    updateFollowButtonUI();
+    if (followListModalOverlay && !followListModalOverlay.classList.contains('hidden')) {
+      renderFollowList();
+    }
+  });
+
+  window.addEventListener('pagelle:network:synced', () => {
+    updateFollowersCountDisplay();
+    updateFollowButtonUI();
+    if (followListModalOverlay && !followListModalOverlay.classList.contains('hidden')) {
+      renderFollowList();
     }
   });
 

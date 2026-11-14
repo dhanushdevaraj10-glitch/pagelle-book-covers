@@ -107,9 +107,22 @@ authFormEl.addEventListener('submit', async (e) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = { error: `Server communication error (HTTP ${res.status})` };
+    }
 
     if (!res.ok || !data.session) {
+      if (res.status === 409 || (data.error && data.error.includes('already exists'))) {
+        showError('An account with this email already exists. Switched to Sign In mode. Please enter your password.');
+        setMode('signin');
+        authSubmitBtn.disabled = false;
+        authSubmitBtn.textContent = 'Sign In';
+        passwordInputEl.focus();
+        return;
+      }
       showError(data.error || 'Authentication failed.');
       authSubmitBtn.disabled = false;
       authSubmitBtn.textContent = originalLabel;

@@ -3,6 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+let SEED_DATA = null;
+try {
+  SEED_DATA = require('./data/store.json');
+} catch {}
+
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
 const DATA_DIR = process.env.VERCEL ? path.join('/tmp', 'data') : path.join(ROOT, 'data');
@@ -55,6 +60,14 @@ function ensureStore() {
         return JSON.parse(seedContent);
       } catch {}
     }
+    if (SEED_DATA) {
+      try {
+        fs.writeFileSync(STORE_PATH, JSON.stringify(SEED_DATA, null, 2), 'utf8');
+        return JSON.parse(JSON.stringify(SEED_DATA));
+      } catch {
+        return SEED_DATA;
+      }
+    }
 
     const now = new Date().toISOString();
     const initial = {
@@ -74,7 +87,8 @@ function ensureStore() {
       ],
       loginLogs: [],
       communityCovers: [],
-      sessions: {}
+      sessions: {},
+      follows: []
     };
     try {
       fs.writeFileSync(STORE_PATH, JSON.stringify(initial, null, 2), 'utf8');
@@ -87,6 +101,17 @@ function ensureStore() {
     if (!Array.isArray(parsed.users)) parsed.users = [];
     if (!Array.isArray(parsed.loginLogs)) parsed.loginLogs = [];
     if (!Array.isArray(parsed.communityCovers)) parsed.communityCovers = [];
+    if (!Array.isArray(parsed.follows)) parsed.follows = [];
+    if (parsed.follows.length === 0 && SEED_DATA && Array.isArray(SEED_DATA.follows)) {
+      parsed.follows = JSON.parse(JSON.stringify(SEED_DATA.follows));
+    }
+    if (SEED_DATA && Array.isArray(SEED_DATA.users)) {
+      for (const su of SEED_DATA.users) {
+        if (!parsed.users.some(u => u.email && su.email && u.email.toLowerCase() === su.email.toLowerCase())) {
+          parsed.users.push(su);
+        }
+      }
+    }
     if (!parsed.sessions || typeof parsed.sessions !== 'object') parsed.sessions = {};
 
     // Guarantee primary admin always exists
@@ -114,7 +139,7 @@ function ensureStore() {
     };
     return parsed;
   } catch {
-    return { users: [], loginLogs: [], communityCovers: [], sessions: {} };
+    return { users: [], loginLogs: [], communityCovers: [], sessions: {}, follows: [] };
   }
 }
 
@@ -319,6 +344,7 @@ function sanitizeUser(u) {
 
 async function handleApi(req, res, urlPath) {
   const store = ensureStore();
+  const parsedUrl = new URL(req.url, 'http://localhost');
 
   if (urlPath === '/api/auth/login' && req.method === 'POST') {
     const ip = getClientIp(req);
@@ -691,17 +717,210 @@ async function handleApi(req, res, urlPath) {
   }
 
   if (urlPath === '/api/community/members' && req.method === 'GET') {
-    const members = (store.users || []).filter((u) => u.active !== false).map((u) => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: u.role,
-      accountType: u.accountType || 'Personal',
-      avatar: u.avatar || 'assets/default-avatar.png',
-      bio: u.bio || '',
-      createdAt: u.createdAt
-    }));
+    const allFollows = Array.isArray(store.follows) ? store.follows : [];
+    const members = (store.users || []).filter((u) => u.active !== false).map((u) => {
+      const uEmail = (u.email || '').toLowerCase();
+      const uId = u.id;
+      const followerCount = allFollows.filter(f =>
+        (uId && f.followedId === uId) || (uEmail && f.followedEmail && f.followedEmail.toLowerCase() === uEmail)
+      ).length;
+      const followingCount = allFollows.filter(f =>
+        (uId && f.followerId === uId) || (uEmail && f.followerEmail && f.followerEmail.toLowerCase() === uEmail)
+      ).length;
+
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        accountType: u.accountType || 'Personal',
+        avatar: u.avatar || 'assets/default-avatar.png',
+        bio: u.bio || '',
+        followerCount,
+        followingCount,
+        createdAt: u.createdAt
+      };
+    });
     sendJson(res, 200, { members });
+    return;
+  }
+
+  // ==========================================
+  // COMMUNITY FOLLOWING & FOLLOWERS NETWORK API
+  // ==========================================
+  if (urlPath === '/api/network/all' && req.method === 'GET') {
+    sendJson(res, 200, {
+      ok: true,
+      follows: store.follows || []
+    });
+    return;
+  }
+
+  if (urlPath === '/api/network/profile' && req.method === 'GET') {
+    const targetId = parsedUrl.searchParams.get('id') || (req.query && req.query.id) || '';
+    const targetEmail = (parsedUrl.searchParams.get('email') || (req.query && req.query.email) || '').toLowerCase().trim();
+    const allFollows = Array.isArray(store.follows) ? store.follows : [];
+
+    let requester = getAuthenticatedSession(req, store)?.user;
+    if (!requester && req.headers['x-user-email']) {
+      requester = store.users.find(u => u.email.toLowerCase() === req.headers['x-user-email'].toLowerCase().trim());
+    }
+
+    const followers = allFollows.filter(f =>
+      (targetId && f.followedId === targetId) ||
+      (targetEmail && f.followedEmail && f.followedEmail.toLowerCase() === targetEmail)
+    ).map(f => {
+      const u = store.users.find(user => (f.followerId && user.id === f.followerId) || (f.followerEmail && user.email.toLowerCase() === f.followerEmail.toLowerCase()));
+      return {
+        id: f.followerId,
+        name: f.followerName || (u ? u.name : 'Member'),
+        email: f.followerEmail,
+        avatar: (u && u.avatar) || f.followerAvatar || 'assets/default-avatar.png',
+        role: (u && u.role) || 'Collector',
+        bio: (u && u.bio) || '',
+        createdAt: f.createdAt
+      };
+    });
+
+    const following = allFollows.filter(f =>
+      (targetId && f.followerId === targetId) ||
+      (targetEmail && f.followerEmail && f.followerEmail.toLowerCase() === targetEmail)
+    ).map(f => {
+      const u = store.users.find(user => (f.followedId && user.id === f.followedId) || (f.followedEmail && user.email.toLowerCase() === f.followedEmail.toLowerCase()));
+      return {
+        id: f.followedId,
+        name: f.followedName || (u ? u.name : 'Member'),
+        email: f.followedEmail,
+        avatar: (u && u.avatar) || 'assets/default-avatar.png',
+        role: (u && u.role) || 'Collector',
+        bio: (u && u.bio) || '',
+        createdAt: f.createdAt
+      };
+    });
+
+    const isFollowing = requester ? allFollows.some(f =>
+      ((f.followerId && f.followerId === requester.id) || (f.followerEmail && f.followerEmail.toLowerCase() === requester.email.toLowerCase())) &&
+      ((targetId && f.followedId === targetId) || (targetEmail && f.followedEmail && f.followedEmail.toLowerCase() === targetEmail))
+    ) : false;
+
+    sendJson(res, 200, {
+      ok: true,
+      targetId,
+      targetEmail,
+      followers,
+      following,
+      followerCount: followers.length,
+      followingCount: following.length,
+      isFollowing
+    });
+    return;
+  }
+
+  if (urlPath === '/api/network/follow' && req.method === 'POST') {
+    let auth = getAuthenticatedSession(req, store);
+    const body = await readJsonBody(req);
+    const headerEmail = req.headers['x-user-email'];
+
+    let follower = auth ? auth.user : null;
+    if (!follower && body.followerEmail) {
+      follower = store.users.find(u => u.email.toLowerCase() === String(body.followerEmail).toLowerCase().trim());
+    }
+    if (!follower && headerEmail) {
+      follower = store.users.find(u => u.email.toLowerCase() === String(headerEmail).toLowerCase().trim());
+    }
+
+    if (!follower) {
+      sendJson(res, 401, { error: 'Please sign in to follow community members.' });
+      return;
+    }
+
+    const targetId = String(body.targetId || '').trim();
+    const targetEmail = String(body.targetEmail || '').toLowerCase().trim();
+
+    if (!targetId && !targetEmail) {
+      sendJson(res, 400, { error: 'Target member ID or email is required.' });
+      return;
+    }
+
+    const selfEmail = (follower.email || '').toLowerCase().trim();
+    const selfId = String(follower.id || '').trim();
+
+    // Prevent self-follow
+    if (
+      (targetEmail && selfEmail && targetEmail === selfEmail) ||
+      (targetId && selfId && targetId === selfId) ||
+      (targetEmail && selfId && targetEmail === selfId)
+    ) {
+      sendJson(res, 400, { error: 'You cannot follow yourself.' });
+      return;
+    }
+
+    // Resolve target in store.users if possible
+    let targetUser = store.users.find(u =>
+      (targetId && u.id === targetId) ||
+      (targetEmail && u.email.toLowerCase() === targetEmail)
+    );
+
+    if (!targetUser && (targetEmail === ADMIN_EMAIL.toLowerCase() || targetId === 'usr-admin-owner')) {
+      targetUser = store.users.find(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+    }
+
+    const cleanTargetId = targetUser ? targetUser.id : targetId;
+    const cleanTargetEmail = targetUser ? targetUser.email.toLowerCase() : targetEmail;
+    const targetName = targetUser ? targetUser.name : (cleanTargetEmail ? cleanTargetEmail.split('@')[0] : 'Member');
+
+    if (!Array.isArray(store.follows)) store.follows = [];
+
+    const existingIdx = store.follows.findIndex(f => {
+      const isMe = (f.followerId && f.followerId === selfId) || (f.followerEmail && f.followerEmail.toLowerCase() === selfEmail);
+      const isTarget = (cleanTargetId && f.followedId === cleanTargetId) || (cleanTargetEmail && f.followedEmail && f.followedEmail.toLowerCase() === cleanTargetEmail);
+      return isMe && isTarget;
+    });
+
+    let nowFollowing = false;
+    if (existingIdx >= 0) {
+      store.follows.splice(existingIdx, 1);
+      nowFollowing = false;
+    } else {
+      store.follows.push({
+        id: `flw-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
+        followerId: selfId,
+        followerEmail: selfEmail,
+        followerName: follower.name || selfEmail.split('@')[0],
+        followerAvatar: follower.avatar || 'assets/default-avatar.png',
+        followedId: cleanTargetId,
+        followedEmail: cleanTargetEmail,
+        followedName: targetName,
+        createdAt: new Date().toISOString()
+      });
+      nowFollowing = true;
+    }
+
+    saveStore(store);
+
+    const targetFollowers = store.follows.filter(f =>
+      (cleanTargetId && f.followedId === cleanTargetId) ||
+      (cleanTargetEmail && f.followedEmail && f.followedEmail.toLowerCase() === cleanTargetEmail)
+    );
+    const targetFollowing = store.follows.filter(f =>
+      (cleanTargetId && f.followerId === cleanTargetId) ||
+      (cleanTargetEmail && f.followerEmail && f.followerEmail.toLowerCase() === cleanTargetEmail)
+    );
+    const myFollowing = store.follows.filter(f =>
+      (selfId && f.followerId === selfId) ||
+      (selfEmail && f.followerEmail && f.followerEmail.toLowerCase() === selfEmail)
+    );
+
+    sendJson(res, 200, {
+      ok: true,
+      isFollowing: nowFollowing,
+      targetId: cleanTargetId,
+      targetEmail: cleanTargetEmail,
+      targetFollowerCount: targetFollowers.length,
+      targetFollowingCount: targetFollowing.length,
+      myFollowingCount: myFollowing.length,
+      follows: store.follows
+    });
     return;
   }
 

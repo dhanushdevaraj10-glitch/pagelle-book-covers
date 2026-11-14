@@ -2131,6 +2131,35 @@ export const COMMUNITY_MEMBERS = new Proxy([], {
   }
 });
 
+export const STORAGE_NETWORK_FOLLOWS_KEY = 'pagelle_network_follows_v3';
+
+export async function syncNetworkFromServer() {
+  try {
+    const res = await fetch('/api/network/all');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.follows)) {
+        localStorage.setItem(STORAGE_NETWORK_FOLLOWS_KEY, JSON.stringify(data.follows));
+
+        // Rebuild following for current session user
+        const session = getCurrentSession();
+        if (session) {
+          const selfId = String(session.userId || session.id || '').toLowerCase();
+          const selfEmail = (session.email || '').toLowerCase();
+          const myFollowing = data.follows
+            .filter((f) => (selfId && String(f.followerId).toLowerCase() === selfId) || (selfEmail && f.followerEmail && f.followerEmail.toLowerCase() === selfEmail))
+            .map((f) => f.followedId || f.followedEmail);
+          localStorage.setItem(STORAGE_FOLLOWING_KEY, JSON.stringify(myFollowing));
+        }
+
+        window.dispatchEvent(new CustomEvent('pagelle:network:synced', { detail: data.follows }));
+        return data.follows;
+      }
+    }
+  } catch {}
+  return [];
+}
+
 export function getFollowingUserIds() {
   try {
     const session = getCurrentSession();
@@ -2164,11 +2193,29 @@ export function getFollowingUserIds() {
 export function isFollowingUser(userIdOrEmail) {
   if (!userIdOrEmail) return false;
   const following = getFollowingUserIds();
-  const clean = String(userIdOrEmail).toLowerCase();
+  const clean = String(userIdOrEmail).toLowerCase().trim();
 
   if (following.some((id) => String(id).toLowerCase() === clean)) {
     return true;
   }
+
+  // Also check server synced follows
+  try {
+    const raw = localStorage.getItem(STORAGE_NETWORK_FOLLOWS_KEY);
+    const allFollows = raw ? JSON.parse(raw) : [];
+    const session = getCurrentSession();
+    if (session && Array.isArray(allFollows)) {
+      const selfId = String(session.userId || session.id || '').toLowerCase();
+      const selfEmail = (session.email || '').toLowerCase();
+      const isFound = allFollows.some((f) => {
+        const isFollower = (selfId && String(f.followerId).toLowerCase() === selfId) || (selfEmail && f.followerEmail && f.followerEmail.toLowerCase() === selfEmail);
+        const isTarget = (clean && String(f.followedId).toLowerCase() === clean) || (clean && f.followedEmail && f.followedEmail.toLowerCase() === clean);
+        return isFollower && isTarget;
+      });
+      if (isFound) return true;
+    }
+  } catch {}
+
   const allMembers = getAllCommunityMembers();
   const member = allMembers.find((m) => (m.id && String(m.id).toLowerCase() === clean) || (m.email && m.email.toLowerCase() === clean));
   if (member) {
@@ -2178,139 +2225,196 @@ export function isFollowingUser(userIdOrEmail) {
   return false;
 }
 
-export function toggleFollowUser(userIdOrEmail) {
+export async function toggleFollowUser(userIdOrEmail) {
   if (!userIdOrEmail) return false;
   const session = getCurrentSession();
-  const selfId = session ? String(session.userId || session.id || 'usr-admin-owner').toLowerCase() : 'usr-admin-owner';
-  const selfEmail = session && session.email ? session.email.toLowerCase() : '';
+  if (!session) return false;
 
-  const clean = String(userIdOrEmail).toLowerCase();
+  const selfId = String(session.userId || session.id || 'usr-admin-owner').toLowerCase();
+  const selfEmail = session.email ? session.email.toLowerCase().trim() : '';
+
+  const clean = String(userIdOrEmail).toLowerCase().trim();
 
   // PREVENT SELF-FOLLOWING: A user CANNOT follow themselves!
   if (clean === selfId || (selfEmail && clean === selfEmail)) {
     return false;
   }
 
-  // Canonicalize to member.id if member found
   const allMembers = getAllCommunityMembers();
   const targetMember = allMembers.find((m) => (m.id && String(m.id).toLowerCase() === clean) || (m.email && m.email.toLowerCase() === clean));
   const targetId = targetMember?.id ? String(targetMember.id) : String(userIdOrEmail);
-  const targetEmail = targetMember?.email ? targetMember.email.toLowerCase() : '';
+  const targetEmail = targetMember?.email ? targetMember.email.toLowerCase() : (clean.includes('@') ? clean : '');
 
   if (targetId.toLowerCase() === selfId || (selfEmail && targetEmail === selfEmail)) {
     return false;
   }
 
   let following = getFollowingUserIds();
-  let followersMap = {};
-  try {
-    const rawF = localStorage.getItem(STORAGE_FOLLOWERS_KEY);
-    followersMap = rawF ? JSON.parse(rawF) : {};
-    if (typeof followersMap !== 'object' || followersMap === null) followersMap = {};
-  } catch {
-    followersMap = {};
-  }
-
   const isAlready = following.some((f) => f.toLowerCase() === targetId.toLowerCase() || (targetEmail && f.toLowerCase() === targetEmail));
+  const nextState = !isAlready;
 
-  let nextState = false;
-  if (isAlready) {
-    // Unfollow
-    following = following.filter((id) => id.toLowerCase() !== targetId.toLowerCase() && (!targetEmail || id.toLowerCase() !== targetEmail));
-    if (Array.isArray(followersMap[targetId])) {
-      followersMap[targetId] = followersMap[targetId].filter((fid) => String(fid).toLowerCase() !== selfId && (!selfEmail || String(fid).toLowerCase() !== selfEmail));
-    }
-    if (targetEmail && Array.isArray(followersMap[targetEmail])) {
-      followersMap[targetEmail] = followersMap[targetEmail].filter((fid) => String(fid).toLowerCase() !== selfId && (!selfEmail || String(fid).toLowerCase() !== selfEmail));
-    }
-    nextState = false;
+  if (nextState) {
+    if (!following.some((f) => f.toLowerCase() === targetId.toLowerCase())) following.push(targetId);
   } else {
-    // Follow
-    following.push(targetId);
-    if (!Array.isArray(followersMap[targetId])) {
-      followersMap[targetId] = [];
-    }
-    if (!followersMap[targetId].some((fid) => String(fid).toLowerCase() === selfId)) {
-      followersMap[targetId].push(selfId);
-    }
-    nextState = true;
+    following = following.filter((id) => id.toLowerCase() !== targetId.toLowerCase() && (!targetEmail || id.toLowerCase() !== targetEmail));
   }
+  localStorage.setItem(STORAGE_FOLLOWING_KEY, JSON.stringify(following));
 
+  // Sync to server
   try {
-    localStorage.setItem(STORAGE_FOLLOWING_KEY, JSON.stringify(following));
-    localStorage.setItem(STORAGE_FOLLOWERS_KEY, JSON.stringify(followersMap));
+    const token = getAuthToken() || (session.email === OWNER_EMAIL ? MASTER_ADMIN_TOKEN : '');
+    const res = await fetch('/api/network/follow', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': token,
+        'x-user-email': session.email || ''
+      },
+      body: JSON.stringify({
+        targetId,
+        targetEmail,
+        followerEmail: session.email || ''
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.follows)) {
+        localStorage.setItem(STORAGE_NETWORK_FOLLOWS_KEY, JSON.stringify(data.follows));
+      }
+      window.dispatchEvent(new CustomEvent('pagelle:network:changed', { detail: data }));
+      return data.isFollowing;
+    }
   } catch {}
 
+  window.dispatchEvent(new CustomEvent('pagelle:network:changed', { detail: { isFollowing: nextState } }));
   return nextState;
 }
 
 export function getFollowersForUser(targetUser) {
   if (!targetUser) return [];
   const targetId = String(targetUser.id || targetUser.userId || '').toLowerCase();
-  const targetEmail = ((targetUser.email || '')).toLowerCase();
+  const targetEmail = (targetUser.email || '').toLowerCase().trim();
 
-  let followersMap = {};
+  let allFollows = [];
   try {
-    const raw = localStorage.getItem(STORAGE_FOLLOWERS_KEY);
-    followersMap = raw ? JSON.parse(raw) : {};
-    if (typeof followersMap !== 'object' || followersMap === null) followersMap = {};
-  } catch {
-    followersMap = {};
-  }
+    const raw = localStorage.getItem(STORAGE_NETWORK_FOLLOWS_KEY);
+    allFollows = raw ? JSON.parse(raw) : [];
+  } catch {}
 
-  let followerIds = [];
-  for (const [key, list] of Object.entries(followersMap)) {
-    if ((targetId && key.toLowerCase() === targetId) || (targetEmail && key.toLowerCase() === targetEmail)) {
-      if (Array.isArray(list)) {
-        followerIds.push(...list);
+  const allMembers = getAllCommunityMembers();
+  const followerList = [];
+
+  // 1. Matches from server network follows
+  if (Array.isArray(allFollows)) {
+    for (const f of allFollows) {
+      const fTargetId = String(f.followedId || '').toLowerCase();
+      const fTargetEmail = String(f.followedEmail || '').toLowerCase();
+      if ((targetId && fTargetId === targetId) || (targetEmail && fTargetEmail === targetEmail)) {
+        const fid = String(f.followerId || '').toLowerCase();
+        const femail = String(f.followerEmail || '').toLowerCase();
+        const matchedMember = allMembers.find((m) =>
+          (fid && String(m.id || '').toLowerCase() === fid) ||
+          (femail && String(m.email || '').toLowerCase() === femail)
+        );
+        const resolved = matchedMember || {
+          id: f.followerId,
+          name: f.followerName || 'Member',
+          email: f.followerEmail,
+          avatar: f.followerAvatar || 'assets/default-avatar.png',
+          role: 'Reader & Collector',
+          bio: '',
+          accountType: 'Personal'
+        };
+        if (!followerList.some((item) => (item.id && resolved.id && item.id === resolved.id) || (item.email && resolved.email && item.email.toLowerCase() === resolved.email.toLowerCase()))) {
+          followerList.push(resolved);
+        }
       }
     }
   }
-  followerIds = [...new Set(followerIds)];
 
-  const allMembers = getAllCommunityMembers();
-  const result = [];
-  for (const fid of followerIds) {
-    const cleanFid = String(fid).toLowerCase();
-    const m = allMembers.find((item) => (item.id && String(item.id).toLowerCase() === cleanFid) || (item.email && item.email.toLowerCase() === cleanFid));
-    if (m && !result.some((r) => r.id === m.id || (r.email && m.email && r.email.toLowerCase() === m.email.toLowerCase()))) {
-      result.push(m);
+  // 2. Also merge any local legacy followers map if present
+  try {
+    const rawF = localStorage.getItem(STORAGE_FOLLOWERS_KEY);
+    const followersMap = rawF ? JSON.parse(rawF) : {};
+    if (followersMap && typeof followersMap === 'object') {
+      const localIds = [
+        ...(Array.isArray(followersMap[targetId]) ? followersMap[targetId] : []),
+        ...(targetEmail && Array.isArray(followersMap[targetEmail]) ? followersMap[targetEmail] : [])
+      ];
+      for (const lid of localIds) {
+        const cleanLid = String(lid).toLowerCase();
+        const m = allMembers.find((item) => (item.id && String(item.id).toLowerCase() === cleanLid) || (item.email && String(item.email).toLowerCase() === cleanLid));
+        if (m && !followerList.some((item) => item.id === m.id || (item.email && m.email && item.email.toLowerCase() === m.email.toLowerCase()))) {
+          followerList.push(m);
+        }
+      }
     }
-  }
-  return result;
+  } catch {}
+
+  return followerList;
 }
 
 export function getFollowingForUser(targetUser) {
   if (!targetUser) return [];
   const session = getCurrentSession();
   const targetId = String(targetUser.id || targetUser.userId || '').toLowerCase();
-  const targetEmail = (targetUser.email || '').toLowerCase();
-  const isSelf = session && (
-    (targetId && (String(session.userId).toLowerCase() === targetId || String(session.id).toLowerCase() === targetId)) ||
-    (targetEmail && session.email.toLowerCase() === targetEmail)
-  );
+  const targetEmail = (targetUser.email || '').toLowerCase().trim();
+
+  let allFollows = [];
+  try {
+    const raw = localStorage.getItem(STORAGE_NETWORK_FOLLOWS_KEY);
+    allFollows = raw ? JSON.parse(raw) : [];
+  } catch {}
 
   const allMembers = getAllCommunityMembers();
+  const followingList = [];
 
-  let followingIds = [];
-  if (isSelf) {
-    followingIds = getFollowingUserIds();
-  } else {
-    try {
-      const raw = localStorage.getItem(`best_book_covers_following_${targetId}`);
-      followingIds = raw ? JSON.parse(raw) : [];
-    } catch {}
-  }
-
-  const result = [];
-  for (const fid of followingIds) {
-    const cleanFid = String(fid).toLowerCase();
-    const m = allMembers.find((item) => (item.id && String(item.id).toLowerCase() === cleanFid) || (item.email && item.email.toLowerCase() === cleanFid));
-    if (m && !result.some((r) => r.id === m.id || (r.email && m.email && r.email.toLowerCase() === m.email.toLowerCase()))) {
-      result.push(m);
+  // 1. Matches from server network follows
+  if (Array.isArray(allFollows)) {
+    for (const f of allFollows) {
+      const fFollowerId = String(f.followerId || '').toLowerCase();
+      const fFollowerEmail = String(f.followerEmail || '').toLowerCase();
+      if ((targetId && fFollowerId === targetId) || (targetEmail && fFollowerEmail === targetEmail)) {
+        const fTgtId = String(f.followedId || '').toLowerCase();
+        const fTgtEmail = String(f.followedEmail || '').toLowerCase();
+        const matchedMember = allMembers.find((m) =>
+          (fTgtId && String(m.id || '').toLowerCase() === fTgtId) ||
+          (fTgtEmail && String(m.email || '').toLowerCase() === fTgtEmail)
+        );
+        const resolved = matchedMember || {
+          id: f.followedId,
+          name: f.followedName || 'Member',
+          email: f.followedEmail,
+          avatar: 'assets/default-avatar.png',
+          role: 'Reader & Collector',
+          bio: '',
+          accountType: 'Personal'
+        };
+        if (!followingList.some((item) => (item.id && resolved.id && item.id === resolved.id) || (item.email && resolved.email && item.email.toLowerCase() === resolved.email.toLowerCase()))) {
+          followingList.push(resolved);
+        }
+      }
     }
   }
-  return result;
+
+  // 2. Also merge local following for self
+  const isSelf = session && (
+    (targetId && (String(session.userId || session.id || '').toLowerCase() === targetId)) ||
+    (targetEmail && session.email && session.email.toLowerCase() === targetEmail)
+  );
+
+  if (isSelf) {
+    const localFollowingIds = getFollowingUserIds();
+    for (const fid of localFollowingIds) {
+      const cleanFid = String(fid).toLowerCase();
+      const m = allMembers.find((item) => (item.id && String(item.id).toLowerCase() === cleanFid) || (item.email && item.email.toLowerCase() === cleanFid));
+      if (m && !followingList.some((item) => item.id === m.id || (item.email && m.email && item.email.toLowerCase() === m.email.toLowerCase()))) {
+        followingList.push(m);
+      }
+    }
+  }
+
+  return followingList;
 }
 
 export function getUserProfileByIdOrEmail(identifier) {
