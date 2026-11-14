@@ -23,7 +23,7 @@ import {
   getFollowingForUser,
   getUserProfileByIdOrEmail,
   getMemberPosts
-} from './shared.js?v=2.0.1';
+} from './shared.js?v=2.0.2';
 
 function escapeHtml(str) {
   return String(str || '')

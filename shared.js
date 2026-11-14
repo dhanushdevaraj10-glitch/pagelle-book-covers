@@ -207,6 +207,7 @@ export function initInstantPrefetch() {
 }
 
 export const OWNER_EMAIL = 'dhanushdevaraj10@gmail.com';
+export const MASTER_ADMIN_TOKEN = 'pagelle_admin_master_session_token_dhanush_2026';
 export const STORAGE_SESSION_KEY = 'best_book_covers_session_v1';
 export const STORAGE_ACCOUNTS_KEY = 'best_book_covers_accounts_v1';
 export const STORAGE_DELETED_ACCOUNTS_KEY = 'best_book_covers_deleted_accounts_v1';
@@ -299,6 +300,12 @@ export function getCurrentSession() {
     if (!parsed || !parsed.email) return null;
 
     const isOwner = parsed.email.toLowerCase() === OWNER_EMAIL.toLowerCase();
+
+    // Ensure owner always has verified admin role and permanent master admin token
+    if (isOwner) {
+      parsed.role = 'admin';
+      parsed.token = MASTER_ADMIN_TOKEN;
+    }
 
     // Ensure session always has an avatar and never reverts to outdated/default placeholders
     if (!parsed.avatar || (isOwner && parsed.avatar.includes('default-avatar'))) {
