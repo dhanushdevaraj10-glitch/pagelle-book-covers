@@ -2535,13 +2535,6 @@ export async function fetchUserProfileFromServer(identifier) {
   } catch {}
   return null;
 }
-        (found.id && session.userId && String(found.id).toLowerCase() === String(session.userId).toLowerCase())
-      ) : false
-    };
-  }
-
-  return null;
-}
 
 export function getMemberPosts(targetUser) {
   if (!targetUser) return [];
