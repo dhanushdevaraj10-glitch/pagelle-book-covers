@@ -170,9 +170,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     nameEl.textContent = displayName;
 
     if (handleEl) {
-      const uname = activeUser.username || (activeUser.name ? activeUser.name.toLowerCase().replace(/[^a-z0-9_]/g, '') : (activeUser.email ? activeUser.email.split('@')[0] : 'user'));
-      handleEl.textContent = `@${uname.replace(/^@/, '')}`;
-      handleEl.classList.remove('hidden');
+      handleEl.textContent = '';
+      handleEl.classList.add('hidden');
     }
 
     const isOwner = activeUser.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
@@ -246,9 +245,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function updateFollowersCountDisplay() {
     const followers = getFollowersForUser(activeUser);
-    followersEl.textContent = String(followers.length);
+    if (followersEl) followersEl.textContent = String(followers.length);
     const following = getFollowingForUser(activeUser);
-    followingEl.textContent = String(following.length);
+    if (followingEl) followingEl.textContent = String(following.length);
   }
 
   updateFollowButtonUI();
