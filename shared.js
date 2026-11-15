@@ -892,14 +892,7 @@ export function initAuthHeader() {
         : ''
     }
 
-    <!-- Section 2 – Account Settings & Discover -->
-    <a href="profile.html?explore=1" class="dropdown-menu-item" id="dropdownFindProfilesLink" role="menuitem" style="margin-top: 6px; text-decoration: none; color: inherit; display: flex; align-items: center;">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 7px;">
-        <circle cx="11" cy="11" r="8"></circle>
-        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-      </svg>
-      <span>Find Profiles to Follow</span>
-    </a>
+    <!-- Section 2 – Account Settings -->
     <button type="button" class="dropdown-menu-item" id="dropdownConvertBusinessBtn" role="menuitem">
       <span>${currentAccountType === 'Business' ? 'Convert to personal' : 'Convert to business'}</span>
     </button>
