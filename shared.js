@@ -1781,8 +1781,7 @@ export function createDetailModalController({ onBooksChanged } = {}) {
     if (book.isCommunity && (book.submittedById || book.submittedByEmail || book.submittedByName)) {
       const creatorTarget = book.submittedById || book.submittedByEmail || book.submittedByName;
       authorEl.style.cursor = 'pointer';
-      authorEl.style.textDecoration = 'underline';
-      authorEl.style.textUnderlineOffset = '3px';
+      authorEl.style.textDecoration = 'none';
       authorEl.title = `View ${book.author}'s profile`;
       authorEl.onclick = () => {
         close();
