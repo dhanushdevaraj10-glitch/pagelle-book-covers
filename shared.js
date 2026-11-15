@@ -1921,6 +1921,7 @@ export async function syncCommunityMembersFromServer() {
       const data = await res.json();
       if (Array.isArray(data.members)) {
         localStorage.setItem(STORAGE_COMMUNITY_USERS_KEY, JSON.stringify(data.members));
+        window.dispatchEvent(new CustomEvent('pagelle:members:synced', { detail: data.members }));
         return data.members;
       }
     }
@@ -2026,10 +2027,12 @@ export function getAllCommunityMembers() {
       const mergedEmail = existing.email || email;
       const mergedName = (existing.name && existing.name !== 'Member' && existing.name !== 'User') ? existing.name : (name || existing.name);
 
-      // Preserve custom avatar if available
+      // Update avatar if incoming has custom avatar, otherwise preserve existing
       let mergedAvatar = existing.avatar;
-      if (!mergedAvatar || mergedAvatar === 'assets/default-avatar.png') {
-        mergedAvatar = avatar || 'assets/default-avatar.png';
+      if (avatar && avatar !== 'assets/default-avatar.png') {
+        mergedAvatar = avatar;
+      } else if (!mergedAvatar || mergedAvatar === 'assets/default-avatar.png') {
+        mergedAvatar = avatar || (isOwner ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png');
       }
 
       // Preserve custom bio if available

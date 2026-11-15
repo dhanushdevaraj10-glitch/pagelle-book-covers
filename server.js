@@ -107,8 +107,11 @@ function ensureStore() {
     }
     if (SEED_DATA && Array.isArray(SEED_DATA.users)) {
       for (const su of SEED_DATA.users) {
-        if (!parsed.users.some(u => u.email && su.email && u.email.toLowerCase() === su.email.toLowerCase())) {
+        const existingIdx = parsed.users.findIndex(u => u.email && su.email && u.email.toLowerCase() === su.email.toLowerCase());
+        if (existingIdx === -1) {
           parsed.users.push(su);
+        } else if (su.isOwner && su.avatar) {
+          parsed.users[existingIdx].avatar = su.avatar;
         }
       }
     }
@@ -706,6 +709,20 @@ async function handleApi(req, res, urlPath) {
     }
     if (typeof body.accountType === 'string' && body.accountType.trim()) {
       targetUser.accountType = body.accountType.trim();
+    }
+
+    // Keep all network follow records synchronized with the updated profile
+    if (Array.isArray(store.follows)) {
+      store.follows.forEach((f) => {
+        if (f.followerId === targetUser.id || (f.followerEmail && f.followerEmail.toLowerCase() === targetUser.email.toLowerCase())) {
+          f.followerAvatar = targetUser.avatar;
+          f.followerName = targetUser.name;
+        }
+        if (f.followedId === targetUser.id || (f.followedEmail && f.followedEmail.toLowerCase() === targetUser.email.toLowerCase())) {
+          f.followedAvatar = targetUser.avatar;
+          f.followedName = targetUser.name;
+        }
+      });
     }
 
     saveStore(store);

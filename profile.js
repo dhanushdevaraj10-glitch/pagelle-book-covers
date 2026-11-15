@@ -24,7 +24,7 @@ import {
   getFollowingForUser,
   getUserProfileByIdOrEmail,
   getMemberPosts
-} from './shared.js?v=2.0.3';
+} from './shared.js?v=2.0.4';
 
 function escapeHtml(str) {
   return String(str || '')
@@ -820,6 +820,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('pagelle:network:synced', () => {
     updateFollowersCountDisplay();
     updateFollowButtonUI();
+    if (followListModalOverlay && !followListModalOverlay.classList.contains('hidden')) {
+      renderFollowList();
+    }
+  });
+
+  window.addEventListener('pagelle:members:synced', () => {
     if (followListModalOverlay && !followListModalOverlay.classList.contains('hidden')) {
       renderFollowList();
     }
