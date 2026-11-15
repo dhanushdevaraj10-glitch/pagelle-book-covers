@@ -530,14 +530,14 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  min-width: 200px;
-  height: 46px;
+  gap: 16px;
+  min-width: 172px;
+  height: 40px;
   background-color: transparent;
   backdrop-filter: blur(10px);
   border: 1px solid rgba(201, 174, 140, 0.45);
   border-radius: 999px;
-  padding: 0 7px 0 22px;
+  padding: 0 6px 0 18px;
   color: var(--accent);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 24px rgba(201, 174, 140, 0.08);
   transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
@@ -551,15 +551,15 @@ button {
 }
 
 .hero-view-all-text {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 2.2px;
+  letter-spacing: 2px;
   color: #f8f6f0;
 }
 
 .hero-view-all-arrow {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background-color: var(--accent);
   color: #161616;
@@ -4178,6 +4178,28 @@ button {
     width: 100%;
     margin-top: 16px;
     margin-bottom: 8px;
+  }
+
+  .hero-view-all-bar {
+    min-width: 154px;
+    height: 36px;
+    padding: 0 5px 0 16px;
+    gap: 14px;
+  }
+
+  .hero-view-all-text {
+    font-size: 10px;
+    letter-spacing: 1.8px;
+  }
+
+  .hero-view-all-arrow {
+    width: 26px;
+    height: 26px;
+  }
+
+  .hero-view-all-arrow svg {
+    width: 11px;
+    height: 11px;
   }
 
   .main-band {
