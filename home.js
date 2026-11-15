@@ -33,6 +33,8 @@ const carouselPrevBtn = document.getElementById('carouselPrev');
 const carouselNextBtn = document.getElementById('carouselNext');
 const collectionsGridEl = document.getElementById('collectionsGrid');
 
+let lastWidth = window.innerWidth;
+
 function updateHeroScale() {
   if (!heroCollageEl) return;
   const stage = heroCollageEl.parentElement;
@@ -85,8 +87,26 @@ function renderHeroCollage() {
   });
 }
 
-window.addEventListener('resize', updateHeroScale, { passive: true });
-window.addEventListener('orientationchange', updateHeroScale, { passive: true });
+function handleResize() {
+  const currentWidth = window.innerWidth;
+  // Prevent recalculation on mobile scroll where only height changes due to toolbar collapse
+  if (Math.abs(currentWidth - lastWidth) > 3) {
+    lastWidth = currentWidth;
+    if (window.innerWidth <= 720) {
+      document.documentElement.style.setProperty('--initial-hero-h', window.innerHeight + 'px');
+    }
+    updateHeroScale();
+  }
+}
+
+window.addEventListener('resize', handleResize, { passive: true });
+window.addEventListener('orientationchange', () => {
+  lastWidth = window.innerWidth;
+  if (window.innerWidth <= 720) {
+    document.documentElement.style.setProperty('--initial-hero-h', window.innerHeight + 'px');
+  }
+  updateHeroScale();
+}, { passive: true });
 
 function renderCarousel() {
   carouselTrackEl.innerHTML = '';
