@@ -4151,7 +4151,7 @@ button {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    padding-bottom: 28px;
+    padding-bottom: 6px;
     box-sizing: border-box;
     overflow: visible;
   }
@@ -4176,8 +4176,8 @@ button {
     align-items: center;
     justify-content: center;
     width: 100%;
-    margin-top: 16px;
-    margin-bottom: 8px;
+    margin-top: 36px;
+    margin-bottom: 30px;
   }
 
   .hero-view-all-bar {
