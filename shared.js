@@ -327,7 +327,7 @@ export function getCurrentSession() {
       }
 
       if (!parsed.avatar || (isOwner && parsed.avatar.includes('default-avatar'))) {
-        parsed.avatar = isOwner ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png';
+        parsed.avatar = isOwner ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png';
       }
     }
 
@@ -365,7 +365,7 @@ export function getStoredAccounts(currentSession) {
     const activeEmail = (currentSession && currentSession.email) || OWNER_EMAIL;
     const activeRole = (currentSession && currentSession.role) || (activeEmail === OWNER_EMAIL ? 'admin' : 'user');
     const activeType = (currentSession && currentSession.accountType) || 'Personal';
-    const activeAvatar = (currentSession && currentSession.avatar) || (activeEmail === OWNER_EMAIL ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png');
+    const activeAvatar = (currentSession && currentSession.avatar) || (activeEmail === OWNER_EMAIL ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png');
 
     accounts = [
       {
@@ -390,7 +390,7 @@ export function getStoredAccounts(currentSession) {
         name: currentSession.name || accounts[idx].name,
         role: currentSession.role || accounts[idx].role,
         accountType: currentSession.accountType || accounts[idx].accountType || 'Personal',
-        avatar: currentSession.avatar || accounts[idx].avatar || (currentSession.email.toLowerCase() === OWNER_EMAIL.toLowerCase() ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png')
+        avatar: currentSession.avatar || accounts[idx].avatar || (currentSession.email.toLowerCase() === OWNER_EMAIL.toLowerCase() ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png')
       };
     } else {
       accounts.push({
@@ -399,7 +399,7 @@ export function getStoredAccounts(currentSession) {
         email: currentSession.email,
         role: currentSession.role || 'user',
         accountType: currentSession.accountType || 'Personal',
-        avatar: currentSession.avatar || (currentSession.email.toLowerCase() === OWNER_EMAIL.toLowerCase() ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png')
+        avatar: currentSession.avatar || (currentSession.email.toLowerCase() === OWNER_EMAIL.toLowerCase() ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png')
       });
     }
     try {
@@ -421,7 +421,7 @@ export function getStoredUserAvatar(email) {
   const cleanEmail = email.toLowerCase().trim();
   try {
     const custom = localStorage.getItem(`best_book_covers_avatar_${cleanEmail}`);
-    if (custom && custom !== 'assets/default-avatar.png' && custom !== 'assets/avatar-dhanush.jpg') {
+    if (custom && custom !== 'assets/default-avatar.png' && !custom.includes('avatar-dhanush.jpg')) {
       return custom;
     }
     const session = getCurrentSession();
@@ -930,7 +930,13 @@ export function initAuthHeader() {
     }
   }
 
-  profileBtn.addEventListener('click', toggleMenu);
+  // Avatar button: clicking opens user's own Profile page directly
+  profileBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.location.href = 'profile.html';
+  });
+
+  // Chevron arrow: toggles account switcher dropdown menu
   chevronBtn.addEventListener('click', toggleMenu);
 
   document.addEventListener('click', (e) => {
@@ -951,9 +957,7 @@ export function initAuthHeader() {
   if (activeCard) {
     activeCard.addEventListener('click', () => {
       closeMenu();
-      if (!window.location.pathname.endsWith('profile.html')) {
-        window.location.href = 'profile.html';
-      }
+      window.location.href = 'profile.html';
     });
     activeCard.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -1762,6 +1766,32 @@ export function createDetailModalController({ onBooksChanged } = {}) {
     avatarEl.textContent = getInitials(book.author);
     authorEl.textContent = book.author;
     metaSubEl.textContent = `${book.designer || 'Editorial Studio'} · ${book.year || '2026'}`;
+
+    if (book.isCommunity && (book.submittedById || book.submittedByEmail || book.submittedByName)) {
+      const creatorTarget = book.submittedById || book.submittedByEmail || book.submittedByName;
+      authorEl.style.cursor = 'pointer';
+      authorEl.style.textDecoration = 'underline';
+      authorEl.style.textUnderlineOffset = '3px';
+      authorEl.title = `View ${book.author}'s profile`;
+      authorEl.onclick = () => {
+        close();
+        window.location.href = `profile.html?user=${encodeURIComponent(creatorTarget)}`;
+      };
+      avatarEl.style.cursor = 'pointer';
+      avatarEl.title = `View ${book.author}'s profile`;
+      avatarEl.onclick = () => {
+        close();
+        window.location.href = `profile.html?user=${encodeURIComponent(creatorTarget)}`;
+      };
+    } else {
+      authorEl.style.cursor = 'default';
+      authorEl.style.textDecoration = 'none';
+      authorEl.title = '';
+      authorEl.onclick = null;
+      avatarEl.style.cursor = 'default';
+      avatarEl.title = '';
+      avatarEl.onclick = null;
+    }
     titleEl.textContent = book.title;
     descEl.textContent = book.desc || '';
 
@@ -2008,7 +2038,7 @@ export const SEED_COMMUNITY_MEMBERS = [
     email: 'dhanushdevaraj10@gmail.com',
     role: 'admin',
     bio: 'Thick Thighs pretty eyes',
-    avatar: 'assets/avatar-dhanush.jpg',
+    avatar: 'assets/avatar-dhanush.jpg?v=2.2.0',
     accountType: 'Personal',
     coversCount: 1
   },
@@ -2130,7 +2160,7 @@ export function getAllCommunityMembers() {
     const customStoredAvatar = email ? getStoredUserAvatar(email) : null;
     let avatar = customStoredAvatar || m.avatar;
     if (!avatar || avatar === 'assets/default-avatar.png') {
-      avatar = isOwner ? (getStoredUserAvatar(OWNER_EMAIL) || 'assets/avatar-dhanush.jpg') : 'assets/default-avatar.png';
+      avatar = isOwner ? (getStoredUserAvatar(OWNER_EMAIL) || 'assets/avatar-dhanush.jpg?v=2.2.0') : 'assets/default-avatar.png';
     }
 
     const isSelf = session ? (
@@ -2150,13 +2180,18 @@ export function getAllCommunityMembers() {
       const mergedName = (existing.name && existing.name !== 'Member' && existing.name !== 'User') ? existing.name : (name || existing.name);
 
       // Update avatar prioritizing custom photo over defaults
-      let mergedAvatar = customStoredAvatar || existing.avatar;
-      if (customStoredAvatar) {
-        mergedAvatar = customStoredAvatar;
-      } else if (avatar && avatar !== 'assets/default-avatar.png' && avatar !== 'assets/avatar-dhanush.jpg') {
-        mergedAvatar = avatar;
-      } else if (!mergedAvatar || mergedAvatar === 'assets/default-avatar.png') {
-        mergedAvatar = avatar || (isOwner ? (getStoredUserAvatar(OWNER_EMAIL) || 'assets/avatar-dhanush.jpg') : 'assets/default-avatar.png');
+      let mergedAvatar = customStoredAvatar;
+      if (!mergedAvatar && m.avatar && m.avatar !== 'assets/default-avatar.png') {
+        mergedAvatar = m.avatar;
+      }
+      if (!mergedAvatar && existing.avatar && existing.avatar !== 'assets/default-avatar.png') {
+        mergedAvatar = existing.avatar;
+      }
+      if (!mergedAvatar || mergedAvatar === 'assets/default-avatar.png') {
+        mergedAvatar = isOwner ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png';
+      }
+      if (isOwner && (!mergedAvatar || mergedAvatar === 'assets/avatar-dhanush.jpg' || mergedAvatar === 'assets/default-avatar.png')) {
+        mergedAvatar = 'assets/avatar-dhanush.jpg?v=2.2.0';
       }
 
       // Preserve custom bio if available
@@ -2218,7 +2253,7 @@ export function getAllCommunityMembers() {
       email: session.email,
       role: session.role === 'admin' ? 'Community Creator & Collector' : 'Book Cover Collector',
       bio: session.bio || (isOwner ? 'Thick Thighs pretty eyes' : ''),
-      avatar: session.avatar || (isOwner ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png'),
+      avatar: session.avatar || (isOwner ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png'),
       accountType: session.accountType || 'Personal',
       isSelf: true
     });
@@ -2754,7 +2789,7 @@ export function getUserProfileByIdOrEmail(identifier) {
         email: session.email,
         role: session.role || 'user',
         bio: session.bio || (isOwner ? 'Thick Thighs pretty eyes' : ''),
-        avatar: session.avatar || (isOwner ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png'),
+        avatar: session.avatar || (isOwner ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png'),
         accountType: session.accountType || 'Personal',
         isSelf: true
       };
@@ -2777,13 +2812,19 @@ export function getUserProfileByIdOrEmail(identifier) {
       (m.handle && m.handle.toLowerCase() === `@${clean}`)
   );
   if (found) {
+    const isOwner = found.email && found.email.toLowerCase() === OWNER_EMAIL.toLowerCase();
     const isSelfUser = session ? (
       (found.email && session.email && found.email.toLowerCase() === session.email.toLowerCase()) ||
       (found.id && session.userId && String(found.id).toLowerCase() === String(session.userId).toLowerCase()) ||
       (found.id && session.id && String(found.id).toLowerCase() === String(session.id).toLowerCase())
     ) : false;
+    let avatar = found.avatar;
+    if (isOwner) {
+      avatar = getStoredUserAvatar(OWNER_EMAIL) || (found.avatar && !found.avatar.includes('default') ? found.avatar : 'assets/avatar-dhanush.jpg?v=2.2.0');
+    }
     return {
       ...found,
+      avatar,
       isSelf: isSelfUser
     };
   }

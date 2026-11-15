@@ -25,7 +25,7 @@ import {
   getUserProfileByIdOrEmail,
   fetchUserProfileFromServer,
   getMemberPosts
-} from './shared.js?v=2.1.0';
+} from './shared.js?v=2.2.0';
 
 function escapeHtml(str) {
   return String(str || '')
@@ -150,7 +150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const isOwner = activeUser.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
-    const fallbackAvatar = isOwner ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png';
+    const fallbackAvatar = isOwner ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png';
     avatarImg.src = activeUser.avatar || fallbackAvatar;
     avatarImg.onerror = () => {
       avatarImg.src = fallbackAvatar;
@@ -444,16 +444,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderHeaderInfo();
       updateFollowButtonUI();
       renderProfileData();
-    } else if (targetParam && !targetProfile) {
+    } else if (targetParam) {
+      // Viewing community member: re-resolve with freshest synced community data
       targetProfile = getUserProfileByIdOrEmail(targetParam);
       if (targetProfile) {
         activeUser = targetProfile;
-        renderHeaderInfo();
-        updateFollowButtonUI();
-        renderProfileData();
       }
+      renderHeaderInfo();
+      updateFollowButtonUI();
+      renderProfileData();
     } else {
-      // Viewing self or already resolved: ALWAYS update counts and UI after network sync
+      // Viewing self (no targetParam): safely update counts and UI from current session
       const cur = getCurrentSession();
       if (cur) {
         activeUser = { ...activeUser, ...cur };
@@ -766,6 +767,19 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         </div>
       `;
+
+      // Wire user profile navigation link
+      const userLink = card.querySelector('.follow-user-link');
+      if (userLink) {
+        userLink.addEventListener('click', (e) => {
+          e.preventDefault();
+          closeFollowModal();
+          const href = userLink.getAttribute('href');
+          if (href) {
+            window.location.href = href;
+          }
+        });
+      }
 
       // Wire inline follow toggle button
       const inlineBtn = card.querySelector('[data-follow-member-id]');

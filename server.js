@@ -122,7 +122,7 @@ function ensureStore() {
         if (existingIdx === -1) {
           parsed.users.push(su);
         } else {
-          if (su.avatar && (!parsed.users[existingIdx].avatar || parsed.users[existingIdx].avatar === 'assets/avatar-dhanush.jpg' || parsed.users[existingIdx].avatar === 'assets/default-avatar.png')) {
+          if (su.avatar && (!parsed.users[existingIdx].avatar || parsed.users[existingIdx].avatar === 'assets/avatar-dhanush.jpg' || parsed.users[existingIdx].avatar === 'assets/avatar-dhanush.jpg?v=2.2.0' || parsed.users[existingIdx].avatar === 'assets/default-avatar.png')) {
             parsed.users[existingIdx].avatar = su.avatar;
           }
           if (su.username && !parsed.users[existingIdx].username) {
@@ -147,7 +147,7 @@ function ensureStore() {
         passwordHash: hashPassword(ADMIN_INITIAL_PASSWORD),
         role: 'admin',
         bio: 'Thick Thighs pretty eyes',
-        avatar: 'assets/avatar-dhanush.jpg',
+        avatar: 'assets/avatar-dhanush.jpg?v=2.2.0',
         accountType: 'Personal',
         isOwner: true,
         active: true,
@@ -359,7 +359,7 @@ function sanitizeUser(u) {
     email: u.email,
     role: u.role,
     bio: u.bio !== undefined ? u.bio : (isDhanush ? 'Thick Thighs pretty eyes' : ''),
-    avatar: u.avatar || (isDhanush ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png'),
+    avatar: u.avatar || (isDhanush ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png'),
     accountType: u.accountType || 'Personal',
     isOwner: Boolean(u.isOwner),
     active: u.active !== false,
@@ -420,7 +420,7 @@ async function handleApi(req, res, urlPath) {
     saveStore(store);
 
     const isDhanush = user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-    const userAvatar = user.avatar || (isDhanush ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png');
+    const userAvatar = user.avatar || (isDhanush ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png');
     const userBio = user.bio !== undefined ? user.bio : (isDhanush ? 'Thick Thighs pretty eyes' : '');
     const userAccountType = user.accountType || 'Personal';
     const userUsername = user.username || user.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
@@ -497,7 +497,7 @@ async function handleApi(req, res, urlPath) {
             handle: `@${existingUsername}`,
             email: existingUser.email,
             role: existingUser.role,
-            avatar: existingUser.avatar || (isDhanush ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png'),
+            avatar: existingUser.avatar || (isDhanush ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png'),
             bio: existingUser.bio !== undefined ? existingUser.bio : (isDhanush ? 'Thick Thighs pretty eyes' : ''),
             accountType: existingUser.accountType || 'Personal',
             loggedInAt: now
@@ -521,7 +521,7 @@ async function handleApi(req, res, urlPath) {
       role: isOwner ? 'admin' : 'user',
       isOwner,
       active: true,
-      avatar: isOwner ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png',
+      avatar: isOwner ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png',
       bio: isOwner ? 'Thick Thighs pretty eyes' : '',
       loginCount: 1,
       createdAt: now,

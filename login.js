@@ -143,7 +143,7 @@ authFormEl.addEventListener('submit', async (e) => {
       } catch {}
     }
     if (!session.avatar || (isOwnerEmail && session.avatar.includes('default-avatar'))) {
-      session.avatar = isOwnerEmail ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png';
+      session.avatar = isOwnerEmail ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png';
     }
 
     // Keep stored accounts synchronized with the authenticated session
