@@ -223,9 +223,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     followersEl.textContent = String(followers.length);
     if (isSelf) {
       const followingIds = getFollowingUserIds();
-      const followingList = getFollowingForUser(activeUser);
-      const count = Math.max(followingIds.length, followingList.length);
-      followingEl.textContent = String(count);
+      followingEl.textContent = String(followingIds.length);
     } else {
       const following = getFollowingForUser(activeUser);
       followingEl.textContent = String(following.length);
@@ -454,6 +452,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateFollowButtonUI();
         renderProfileData();
       }
+    } else {
+      // Viewing self or already resolved: ALWAYS update counts and UI after network sync
+      const cur = getCurrentSession();
+      if (cur) {
+        activeUser = { ...activeUser, ...cur };
+      }
+      renderHeaderInfo();
+      updateFollowButtonUI();
+      updateFollowersCountDisplay();
+      if (followListModalOverlay && !followListModalOverlay.classList.contains('hidden')) {
+        renderFollowList();
+      }
     }
   } catch {}
 
@@ -602,6 +612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const query = (followSearchInput?.value || '').trim().toLowerCase();
     let listToRender = [];
     let isSearchMode = false;
+    let hasCommunityFallback = false;
 
     if (query) {
       isSearchMode = true;
@@ -609,7 +620,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? allFollowers
         : (activeFollowTab === 'following' ? allFollowing : exploreMembers);
 
-      listToRender = baseList.filter((m) => {
+      const filterFn = (m) => {
         const name = (m.name || '').toLowerCase();
         const username = (m.username || '').toLowerCase();
         const handle = (m.handle || '').toLowerCase();
@@ -617,7 +628,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const bio = (m.bio || '').toLowerCase();
         const email = (m.email || '').toLowerCase();
         return name.includes(query) || username.includes(query) || handle.includes(query) || role.includes(query) || bio.includes(query) || email.includes(query);
-      });
+      };
+
+      listToRender = baseList.filter(filterFn);
+      if (listToRender.length === 0 && activeFollowTab !== 'explore') {
+        const communityMatches = exploreMembers.filter(filterFn);
+        if (communityMatches.length > 0) {
+          listToRender = communityMatches;
+          hasCommunityFallback = true;
+        }
+      }
     } else {
       if (activeFollowTab === 'explore') {
         listToRender = exploreMembers;
@@ -629,6 +649,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     followListContainer.innerHTML = '';
+
+    if (hasCommunityFallback) {
+      const banner = document.createElement('div');
+      banner.className = 'follow-search-fallback-banner';
+      banner.style.cssText = 'padding: 8px 12px; margin-bottom: 12px; border-radius: 8px; background: rgba(201, 174, 140, 0.1); border: 1px solid rgba(201, 174, 140, 0.25); color: var(--accent); font-size: 0.82rem;';
+      banner.textContent = `No matches in this tab. Showing community profiles matching "${query}":`;
+      followListContainer.appendChild(banner);
+    }
 
     if (listToRender.length === 0) {
       const emptyWrap = document.createElement('div');
@@ -754,10 +782,18 @@ document.addEventListener('DOMContentLoaded', async () => {
               showToast(`You are now following ${memberName}!`);
             } else {
               showToast(`Unfollowed ${memberName}.`);
+              if (activeFollowTab === 'following') {
+                card.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+                card.style.opacity = '0';
+                card.style.transform = 'scale(0.95)';
+              }
             }
 
             updateFollowButtonUI();
-            renderFollowList();
+            updateFollowersCountDisplay();
+            setTimeout(() => {
+              renderFollowList();
+            }, activeFollowTab === 'following' && !nowFollowing ? 200 : 0);
           } finally {
             inlineBtn.disabled = false;
           }
@@ -892,6 +928,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   window.addEventListener('pagelle:members:synced', () => {
+    if (followListModalOverlay && !followListModalOverlay.classList.contains('hidden')) {
+      renderFollowList();
+    }
+  });
+
+  window.addEventListener('pagelle:profile:updated', () => {
+    const cur = getCurrentSession();
+    if (cur && isSelf) {
+      activeUser = { ...activeUser, ...cur };
+    }
+    renderHeaderInfo();
+    updateFollowersCountDisplay();
     if (followListModalOverlay && !followListModalOverlay.classList.contains('hidden')) {
       renderFollowList();
     }

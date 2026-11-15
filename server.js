@@ -102,8 +102,19 @@ function ensureStore() {
     if (!Array.isArray(parsed.loginLogs)) parsed.loginLogs = [];
     if (!Array.isArray(parsed.communityCovers)) parsed.communityCovers = [];
     if (!Array.isArray(parsed.follows)) parsed.follows = [];
-    if (parsed.follows.length === 0 && SEED_DATA && Array.isArray(SEED_DATA.follows)) {
-      parsed.follows = JSON.parse(JSON.stringify(SEED_DATA.follows));
+    if (SEED_DATA && Array.isArray(SEED_DATA.follows)) {
+      for (const sf of SEED_DATA.follows) {
+        const hasFollow = parsed.follows.some(f =>
+          (f.id && sf.id && f.id === sf.id) ||
+          (
+            String(f.followerId || f.followerEmail).toLowerCase() === String(sf.followerId || sf.followerEmail).toLowerCase() &&
+            String(f.followedId || f.followedEmail).toLowerCase() === String(sf.followedId || sf.followedEmail).toLowerCase()
+          )
+        );
+        if (!hasFollow) {
+          parsed.follows.push(sf);
+        }
+      }
     }
     if (SEED_DATA && Array.isArray(SEED_DATA.users)) {
       for (const su of SEED_DATA.users) {
@@ -111,7 +122,7 @@ function ensureStore() {
         if (existingIdx === -1) {
           parsed.users.push(su);
         } else {
-          if (su.isOwner && su.avatar) {
+          if (su.avatar && (!parsed.users[existingIdx].avatar || parsed.users[existingIdx].avatar === 'assets/avatar-dhanush.jpg' || parsed.users[existingIdx].avatar === 'assets/default-avatar.png')) {
             parsed.users[existingIdx].avatar = su.avatar;
           }
           if (su.username && !parsed.users[existingIdx].username) {
