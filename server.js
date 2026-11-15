@@ -719,12 +719,36 @@ async function handleApi(req, res, urlPath) {
     let auth = getAuthenticatedSession(req, store);
     let targetUser = auth ? auth.user : null;
 
-    if (!targetUser && body.email) {
-      targetUser = store.users.find((u) => u.email.toLowerCase() === String(body.email).toLowerCase());
+    const normalizeEmail = (e) => String(e || '').toLowerCase().trim().replace('@gamil.com', '@gmail.com');
+    const reqEmail = normalizeEmail(body.email || headerEmail);
+
+    if (!targetUser && reqEmail) {
+      targetUser = store.users.find((u) => normalizeEmail(u.email) === reqEmail);
     }
-    const headerEmail = req.headers['x-user-email'];
-    if (!targetUser && headerEmail) {
-      targetUser = store.users.find((u) => u.email.toLowerCase() === String(headerEmail).toLowerCase());
+    if (!targetUser && (body.id || body.userId)) {
+      const bid = String(body.id || body.userId).toLowerCase();
+      targetUser = store.users.find((u) => String(u.id).toLowerCase() === bid);
+    }
+    if (!targetUser && body.username) {
+      const buname = String(body.username).toLowerCase().replace(/^@/, '');
+      targetUser = store.users.find((u) => String(u.username || '').toLowerCase() === buname);
+    }
+
+    if (!targetUser && reqEmail) {
+      const cleanName = body.name || reqEmail.split('@')[0];
+      const cleanUsername = body.username || cleanName.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      targetUser = {
+        id: body.id || body.userId || `usr-${Date.now()}`,
+        name: cleanName,
+        username: cleanUsername,
+        email: reqEmail,
+        role: 'user',
+        avatar: body.avatar || 'assets/default-avatar.png',
+        bio: body.bio || '',
+        accountType: body.accountType || 'Personal',
+        createdAt: new Date().toISOString()
+      };
+      store.users.push(targetUser);
     }
 
     if (!targetUser) {
@@ -822,28 +846,41 @@ async function handleApi(req, res, urlPath) {
     const targetEmail = (parsedUrl.searchParams.get('email') || (req.query && req.query.email) || '').toLowerCase().trim();
     const allFollows = Array.isArray(store.follows) ? store.follows : [];
 
+    const normalizeEmail = (e) => String(e || '').toLowerCase().trim().replace('@gamil.com', '@gmail.com');
+    const rawTarget = String(targetId || targetEmail || '').trim().toLowerCase().replace(/^@/, '');
+    const cleanEmail = normalizeEmail(targetEmail || (rawTarget.includes('@') ? rawTarget : ''));
+
     let requester = getAuthenticatedSession(req, store)?.user;
     if (!requester && req.headers['x-user-email']) {
-      requester = store.users.find(u => u.email.toLowerCase() === req.headers['x-user-email'].toLowerCase().trim());
+      requester = store.users.find(u => normalizeEmail(u.email) === normalizeEmail(req.headers['x-user-email']));
     }
 
     // Resolve target in store.users if possible
-    let targetUser = store.users.find(u =>
-      (targetId && (u.id === targetId || u.username === targetId)) ||
-      (targetEmail && u.email.toLowerCase() === targetEmail)
-    );
-    if (!targetUser && (targetEmail === ADMIN_EMAIL.toLowerCase() || targetId === 'usr-admin-owner' || targetId === 'dhanush')) {
+    let targetUser = store.users.find(u => {
+      const uid = String(u.id || '').toLowerCase();
+      const uemail = normalizeEmail(u.email);
+      const uname = String(u.username || '').toLowerCase().replace(/^@/, '');
+      return (rawTarget && (uid === rawTarget || uname === rawTarget || uemail === rawTarget)) ||
+             (cleanEmail && uemail === cleanEmail);
+    });
+
+    if (!targetUser && (cleanEmail === ADMIN_EMAIL.toLowerCase() || rawTarget === 'usr-admin-owner' || rawTarget === 'dhanush')) {
       targetUser = store.users.find(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
     }
 
     const cleanTargetId = targetUser ? targetUser.id : targetId;
-    const cleanTargetEmail = targetUser ? targetUser.email.toLowerCase() : targetEmail;
+    const cleanTargetEmail = targetUser ? normalizeEmail(targetUser.email) : cleanEmail;
+    const cleanTargetUsername = targetUser ? String(targetUser.username || '').toLowerCase().replace(/^@/, '') : rawTarget;
 
-    const followers = allFollows.filter(f =>
-      (cleanTargetId && (f.followingId === cleanTargetId || f.followedId === cleanTargetId)) ||
-      (cleanTargetEmail && f.followedEmail && f.followedEmail.toLowerCase() === cleanTargetEmail)
-    ).map(f => {
-      const u = store.users.find(user => (f.followerId && user.id === f.followerId) || (f.followerEmail && user.email.toLowerCase() === f.followerEmail.toLowerCase()));
+    const followers = allFollows.filter(f => {
+      const fid = String(f.followingId || f.followedId || '').toLowerCase();
+      const femail = normalizeEmail(f.followedEmail);
+      const funame = String(f.followedUsername || '').toLowerCase().replace(/^@/, '');
+      return (cleanTargetId && fid === cleanTargetId.toLowerCase()) ||
+             (cleanTargetEmail && femail === cleanTargetEmail) ||
+             (cleanTargetUsername && funame === cleanTargetUsername);
+    }).map(f => {
+      const u = store.users.find(user => (f.followerId && user.id === f.followerId) || (f.followerEmail && normalizeEmail(user.email) === normalizeEmail(f.followerEmail)));
       const uname = (u && u.username) || (u && u.name.toLowerCase().replace(/[^a-z0-9_]/g, '')) || f.followerUsername || 'member';
       return {
         id: f.followerId,
@@ -859,12 +896,16 @@ async function handleApi(req, res, urlPath) {
       };
     });
 
-    const following = allFollows.filter(f =>
-      (cleanTargetId && f.followerId === cleanTargetId) ||
-      (cleanTargetEmail && f.followerEmail && f.followerEmail.toLowerCase() === cleanTargetEmail)
-    ).map(f => {
+    const following = allFollows.filter(f => {
+      const fid = String(f.followerId || '').toLowerCase();
+      const femail = normalizeEmail(f.followerEmail);
+      const funame = String(f.followerUsername || '').toLowerCase().replace(/^@/, '');
+      return (cleanTargetId && fid === cleanTargetId.toLowerCase()) ||
+             (cleanTargetEmail && femail === cleanTargetEmail) ||
+             (cleanTargetUsername && funame === cleanTargetUsername);
+    }).map(f => {
       const fTgtId = f.followingId || f.followedId;
-      const u = store.users.find(user => (fTgtId && user.id === fTgtId) || (f.followedEmail && user.email.toLowerCase() === f.followedEmail.toLowerCase()));
+      const u = store.users.find(user => (fTgtId && user.id === fTgtId) || (f.followedEmail && normalizeEmail(user.email) === normalizeEmail(f.followedEmail)));
       const uname = (u && u.username) || (u && u.name.toLowerCase().replace(/[^a-z0-9_]/g, '')) || f.followedUsername || 'member';
       return {
         id: fTgtId,
@@ -881,12 +922,12 @@ async function handleApi(req, res, urlPath) {
     });
 
     const isFollowing = requester ? allFollows.some(f =>
-      ((f.followerId && f.followerId === requester.id) || (f.followerEmail && f.followerEmail.toLowerCase() === requester.email.toLowerCase())) &&
-      ((cleanTargetId && (f.followingId === cleanTargetId || f.followedId === cleanTargetId)) || (cleanTargetEmail && f.followedEmail && f.followedEmail.toLowerCase() === cleanTargetEmail))
+      ((f.followerId && f.followerId === requester.id) || (f.followerEmail && normalizeEmail(f.followerEmail) === normalizeEmail(requester.email))) &&
+      ((cleanTargetId && (f.followingId === cleanTargetId || f.followedId === cleanTargetId)) || (cleanTargetEmail && normalizeEmail(f.followedEmail) === cleanTargetEmail))
     ) : false;
 
     const covers = (store.communityCovers || []).filter(c =>
-      (cleanTargetEmail && c.submittedByEmail && c.submittedByEmail.toLowerCase() === cleanTargetEmail) ||
+      (cleanTargetEmail && c.submittedByEmail && normalizeEmail(c.submittedByEmail) === cleanTargetEmail) ||
       (cleanTargetId && c.submittedById && c.submittedById === cleanTargetId)
     );
 
@@ -911,12 +952,37 @@ async function handleApi(req, res, urlPath) {
     const body = await readJsonBody(req);
     const headerEmail = req.headers['x-user-email'];
 
+    const normalizeEmail = (e) => String(e || '').toLowerCase().trim().replace('@gamil.com', '@gmail.com');
+    const reqFollowerEmail = normalizeEmail(body.followerEmail || headerEmail);
+
     let follower = auth ? auth.user : null;
-    if (!follower && body.followerEmail) {
-      follower = store.users.find(u => u.email.toLowerCase() === String(body.followerEmail).toLowerCase().trim());
+    if (!follower && reqFollowerEmail) {
+      follower = store.users.find(u => normalizeEmail(u.email) === reqFollowerEmail);
     }
-    if (!follower && headerEmail) {
-      follower = store.users.find(u => u.email.toLowerCase() === String(headerEmail).toLowerCase().trim());
+    if (!follower && (body.followerId || body.userId)) {
+      const fid = String(body.followerId || body.userId).toLowerCase();
+      follower = store.users.find(u => String(u.id).toLowerCase() === fid);
+    }
+    if (!follower && body.followerUsername) {
+      const funame = String(body.followerUsername).toLowerCase().replace(/^@/, '');
+      follower = store.users.find(u => String(u.username || '').toLowerCase() === funame);
+    }
+
+    if (!follower && reqFollowerEmail) {
+      const cleanName = body.followerName || reqFollowerEmail.split('@')[0];
+      const cleanUsername = body.followerUsername || cleanName.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      follower = {
+        id: body.followerId || `usr-${Date.now()}`,
+        name: cleanName,
+        username: cleanUsername,
+        email: reqFollowerEmail,
+        role: 'user',
+        avatar: body.followerAvatar || 'assets/default-avatar.png',
+        accountType: 'Personal',
+        createdAt: new Date().toISOString()
+      };
+      store.users.push(follower);
+      saveStore(store);
     }
 
     if (!follower) {
@@ -925,14 +991,14 @@ async function handleApi(req, res, urlPath) {
     }
 
     const targetId = String(body.targetId || '').trim();
-    const targetEmail = String(body.targetEmail || '').toLowerCase().trim();
+    const targetEmail = normalizeEmail(body.targetEmail);
 
     if (!targetId && !targetEmail) {
       sendJson(res, 400, { error: 'Target member ID or email is required.' });
       return;
     }
 
-    const selfEmail = (follower.email || '').toLowerCase().trim();
+    const selfEmail = normalizeEmail(follower.email);
     const selfId = String(follower.id || '').trim();
 
     // Prevent self-follow
@@ -948,7 +1014,7 @@ async function handleApi(req, res, urlPath) {
     // Resolve target in store.users if possible
     let targetUser = store.users.find(u =>
       (targetId && (u.id === targetId || u.username === targetId)) ||
-      (targetEmail && u.email.toLowerCase() === targetEmail)
+      (targetEmail && normalizeEmail(u.email) === targetEmail)
     );
 
     if (!targetUser && (targetEmail === ADMIN_EMAIL.toLowerCase() || targetId === 'usr-admin-owner' || targetId === 'dhanush')) {

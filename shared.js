@@ -337,6 +337,17 @@ export function getCurrentSession() {
   }
 }
 
+export function getAuthToken() {
+  const session = getCurrentSession();
+  if (session && session.token) return session.token;
+  try {
+    const raw = localStorage.getItem(STORAGE_SESSION_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && parsed.token) return parsed.token;
+  } catch {}
+  return (session && session.email === OWNER_EMAIL) ? MASTER_ADMIN_TOKEN : '';
+}
+
 export function getStoredAccounts(currentSession) {
   let accounts = [];
   try {
@@ -508,7 +519,7 @@ export function updateCurrentProfile({ name, bio, avatar, accountType }) {
 
   // Sync to server profile in background
   try {
-    const token = session.token || (session.email === OWNER_EMAIL ? MASTER_ADMIN_TOKEN : '');
+    const token = getAuthToken() || session.token || (session.email === OWNER_EMAIL ? MASTER_ADMIN_TOKEN : '');
     fetch('/api/user/profile', {
       method: 'PATCH',
       headers: {
@@ -517,12 +528,19 @@ export function updateCurrentProfile({ name, bio, avatar, accountType }) {
         'x-user-email': session.email || ''
       },
       body: JSON.stringify({
+        id: session.userId || session.id,
+        userId: session.userId || session.id,
         name: session.name,
+        username: session.username,
         bio: session.bio,
         avatar: session.avatar,
         accountType: session.accountType,
         email: session.email
       })
+    }).then(async (res) => {
+      if (res.ok) {
+        syncCommunityMembersFromServer().catch(() => {});
+      }
     }).catch(() => {});
   } catch {}
 
@@ -2021,6 +2039,15 @@ export async function syncCommunityMembersFromServer() {
       const data = await res.json();
       if (Array.isArray(data.members)) {
         localStorage.setItem(STORAGE_COMMUNITY_USERS_KEY, JSON.stringify(data.members));
+        // Cache user avatars for all members
+        for (const m of data.members) {
+          if (m.email && m.avatar && m.avatar !== 'assets/default-avatar.png') {
+            try {
+              const cleanE = m.email.toLowerCase().trim().replace('@gamil.com', '@gmail.com');
+              localStorage.setItem(`best_book_covers_avatar_${cleanE}`, m.avatar);
+            } catch {}
+          }
+        }
         window.dispatchEvent(new CustomEvent('pagelle:members:synced', { detail: data.members }));
         return data.members;
       }
@@ -2059,10 +2086,10 @@ export const SEED_COMMUNITY_MEMBERS = [
     name: 'Malliga',
     username: 'malliga',
     handle: '@malliga',
-    email: 'malliga@gamil.com',
+    email: 'malliga@gmail.com',
     role: 'user',
     bio: 'Book reader and classic literature collector',
-    avatar: 'assets/default-avatar.png',
+    avatar: 'assets/avatar-malliga.jpg?v=2.2.0',
     accountType: 'Personal',
     coversCount: 0
   },
@@ -2419,10 +2446,14 @@ export function getFollowingUserIds() {
 export function isFollowingUser(userIdOrEmail) {
   if (!userIdOrEmail) return false;
   const following = getFollowingUserIds();
-  const clean = String(userIdOrEmail).toLowerCase().trim();
+  const clean = String(userIdOrEmail).toLowerCase().trim().replace(/^@/, '');
+  const cleanEmail = clean.replace('@gamil.com', '@gmail.com');
 
   // Primary check: directly matches ID or email in following array
-  if (following.some((id) => String(id).toLowerCase() === clean)) {
+  if (following.some((id) => {
+    const cid = String(id).toLowerCase().replace(/^@/, '').replace('@gamil.com', '@gmail.com');
+    return cid === clean || cid === cleanEmail;
+  })) {
     return true;
   }
 
@@ -2430,14 +2461,17 @@ export function isFollowingUser(userIdOrEmail) {
   const allMembers = getAllCommunityMembers();
   const member = allMembers.find((m) =>
     (m.id && String(m.id).toLowerCase() === clean) ||
-    (m.email && m.email.toLowerCase() === clean) ||
+    (m.email && m.email.toLowerCase().replace('@gamil.com', '@gmail.com') === cleanEmail) ||
     (m.username && m.username.toLowerCase() === clean) ||
-    (m.handle && m.handle.toLowerCase() === `@${clean}`)
+    (m.handle && m.handle.toLowerCase().replace(/^@/, '') === clean)
   );
   if (member) {
-    if (member.id && following.some((id) => String(id).toLowerCase() === String(member.id).toLowerCase())) return true;
-    if (member.email && following.some((id) => String(id).toLowerCase() === member.email.toLowerCase())) return true;
-    if (member.username && following.some((id) => String(id).toLowerCase() === member.username.toLowerCase())) return true;
+    const memId = member.id ? String(member.id).toLowerCase() : '';
+    const memEmail = member.email ? member.email.toLowerCase().replace('@gamil.com', '@gmail.com') : '';
+    const memUsername = member.username ? member.username.toLowerCase() : '';
+    if (memId && following.some((id) => String(id).toLowerCase() === memId)) return true;
+    if (memEmail && following.some((id) => String(id).toLowerCase().replace('@gamil.com', '@gmail.com') === memEmail)) return true;
+    if (memUsername && following.some((id) => String(id).toLowerCase().replace(/^@/, '') === memUsername)) return true;
   }
   return false;
 }
@@ -2455,12 +2489,13 @@ export async function toggleFollowUser(userIdOrEmail) {
   }
 
   const selfId = String(session.userId || session.id || 'usr-admin-owner').toLowerCase();
-  const selfEmail = session.email ? session.email.toLowerCase().trim() : '';
+  const selfEmail = session.email ? session.email.toLowerCase().trim().replace('@gamil.com', '@gmail.com') : '';
 
-  const clean = String(userIdOrEmail).toLowerCase().trim();
+  const clean = String(userIdOrEmail).toLowerCase().trim().replace(/^@/, '');
+  const cleanEmail = clean.replace('@gamil.com', '@gmail.com');
 
   // PREVENT SELF-FOLLOWING: A user CANNOT follow themselves!
-  if (clean === selfId || (selfEmail && clean === selfEmail)) {
+  if (clean === selfId || (selfEmail && (clean === selfEmail || cleanEmail === selfEmail))) {
     showToast('You cannot follow yourself.');
     return false;
   }
@@ -2468,12 +2503,12 @@ export async function toggleFollowUser(userIdOrEmail) {
   const allMembers = getAllCommunityMembers();
   const targetMember = allMembers.find((m) =>
     (m.id && String(m.id).toLowerCase() === clean) ||
-    (m.email && m.email.toLowerCase() === clean) ||
+    (m.email && m.email.toLowerCase().replace('@gamil.com', '@gmail.com') === cleanEmail) ||
     (m.username && m.username.toLowerCase() === clean) ||
-    (m.handle && m.handle.toLowerCase() === `@${clean}`)
+    (m.handle && m.handle.toLowerCase().replace(/^@/, '') === clean)
   );
   const targetId = targetMember?.id ? String(targetMember.id) : String(userIdOrEmail);
-  const targetEmail = targetMember?.email ? targetMember.email.toLowerCase() : (clean.includes('@') ? clean : '');
+  const targetEmail = targetMember?.email ? targetMember.email.toLowerCase().replace('@gamil.com', '@gmail.com') : (clean.includes('@') ? cleanEmail : '');
 
   if (targetId.toLowerCase() === selfId || (selfEmail && targetEmail === selfEmail)) {
     showToast('You cannot follow yourself.');
@@ -2588,7 +2623,8 @@ export async function toggleFollowUser(userIdOrEmail) {
 export function getFollowersForUser(targetUser) {
   if (!targetUser) return [];
   const targetId = String(targetUser.id || targetUser.userId || '').toLowerCase();
-  const targetEmail = (targetUser.email || '').toLowerCase().trim();
+  const targetEmail = (targetUser.email || '').toLowerCase().trim().replace('@gamil.com', '@gmail.com');
+  const targetUsername = String(targetUser.username || targetUser.name || '').toLowerCase().replace(/^@/, '');
   const isTargetOwner = targetEmail === OWNER_EMAIL.toLowerCase() || targetId === 'usr-admin-owner' || targetId === 'dhanush';
 
   let allFollows = [];
@@ -2604,28 +2640,42 @@ export function getFollowersForUser(targetUser) {
   if (Array.isArray(allFollows)) {
     for (const f of allFollows) {
       const fFollowingId = String(f.followingId || f.followedId || '').toLowerCase();
-      const fTargetEmail = String(f.followedEmail || '').toLowerCase();
-      if ((targetId && fFollowingId === targetId) || (targetEmail && fTargetEmail === targetEmail)) {
+      const fTargetEmail = String(f.followedEmail || '').toLowerCase().replace('@gamil.com', '@gmail.com');
+      const fTargetUsername = String(f.followedUsername || '').toLowerCase().replace(/^@/, '');
+      const isMatch = (targetId && fFollowingId === targetId) ||
+                      (targetEmail && fTargetEmail === targetEmail) ||
+                      (targetUsername && fTargetUsername && fTargetUsername === targetUsername);
+      if (isMatch) {
         const fid = String(f.followerId || '').toLowerCase();
-        const femail = String(f.followerEmail || '').toLowerCase();
+        const femail = String(f.followerEmail || '').toLowerCase().replace('@gamil.com', '@gmail.com');
         const matchedMember = allMembers.find((m) =>
           (fid && String(m.id || '').toLowerCase() === fid) ||
-          (femail && String(m.email || '').toLowerCase() === femail)
+          (femail && String(m.email || '').toLowerCase().replace('@gamil.com', '@gmail.com') === femail)
         );
         const uname = (matchedMember && matchedMember.username) || f.followerUsername || (f.followerName ? f.followerName.toLowerCase().replace(/[^a-z0-9_]/g, '') : 'member');
         const customAvatar = femail ? getStoredUserAvatar(femail) : null;
-        const resolved = matchedMember || {
+        let finalAvatar = customAvatar || (matchedMember && matchedMember.avatar) || f.followerAvatar || 'assets/default-avatar.png';
+        if (femail.includes('malliga') && (!finalAvatar || finalAvatar.includes('default-avatar'))) {
+          finalAvatar = 'assets/avatar-malliga.jpg?v=2.2.0';
+        }
+        if (femail === OWNER_EMAIL.toLowerCase() && (!finalAvatar || finalAvatar.includes('default-avatar'))) {
+          finalAvatar = 'assets/avatar-dhanush.jpg?v=2.2.0';
+        }
+        const resolved = matchedMember ? {
+          ...matchedMember,
+          avatar: finalAvatar
+        } : {
           id: f.followerId,
           name: f.followerName || 'Member',
           username: uname,
           handle: `@${uname}`,
           email: f.followerEmail,
-          avatar: customAvatar || f.followerAvatar || 'assets/default-avatar.png',
+          avatar: finalAvatar,
           role: 'Reader & Collector',
           bio: '',
           accountType: 'Personal'
         };
-        if (!followerList.some((item) => (item.id && resolved.id && item.id === resolved.id) || (item.email && resolved.email && item.email.toLowerCase() === resolved.email.toLowerCase()))) {
+        if (!followerList.some((item) => (item.id && resolved.id && item.id === resolved.id) || (item.email && resolved.email && item.email.toLowerCase().replace('@gamil.com', '@gmail.com') === resolved.email.toLowerCase().replace('@gamil.com', '@gmail.com')))) {
           followerList.push(resolved);
         }
       }
@@ -2666,11 +2716,13 @@ export function getFollowingForUser(targetUser) {
   if (!targetUser) return [];
   const session = getCurrentSession();
   const targetId = String(targetUser.id || targetUser.userId || '').toLowerCase();
-  const targetEmail = (targetUser.email || '').toLowerCase().trim();
+  const targetEmail = (targetUser.email || '').toLowerCase().trim().replace('@gamil.com', '@gmail.com');
+  const targetUsername = String(targetUser.username || targetUser.name || '').toLowerCase().replace(/^@/, '');
 
   const isSelf = session && (
     (targetId && (String(session.userId || session.id || '').toLowerCase() === targetId)) ||
-    (targetEmail && session.email && session.email.toLowerCase() === targetEmail)
+    (targetEmail && session.email && session.email.toLowerCase().replace('@gamil.com', '@gmail.com') === targetEmail) ||
+    (targetUsername && session.username && session.username.toLowerCase() === targetUsername)
   );
 
   const allMembers = getAllCommunityMembers();
@@ -2687,32 +2739,46 @@ export function getFollowingForUser(targetUser) {
     } catch {}
 
     for (const fid of localFollowingIds) {
-      const cleanFid = String(fid).toLowerCase();
+      const cleanFid = String(fid).toLowerCase().replace(/^@/, '');
+      const normEmail = cleanFid.replace('@gamil.com', '@gmail.com');
       const m = allMembers.find((item) =>
         (item.id && String(item.id).toLowerCase() === cleanFid) ||
-        (item.email && item.email.toLowerCase() === cleanFid) ||
+        (item.email && item.email.toLowerCase().replace('@gamil.com', '@gmail.com') === normEmail) ||
         (item.username && item.username.toLowerCase() === cleanFid)
       );
       if (m) {
+        let avatar = (m.email ? getStoredUserAvatar(m.email) : null) || m.avatar;
+        if (m.email && m.email.toLowerCase().includes('malliga') && (!avatar || avatar.includes('default-avatar'))) {
+          avatar = 'assets/avatar-malliga.jpg?v=2.2.0';
+        }
+        if (m.email && m.email.toLowerCase() === OWNER_EMAIL.toLowerCase() && (!avatar || avatar.includes('default-avatar'))) {
+          avatar = 'assets/avatar-dhanush.jpg?v=2.2.0';
+        }
         if (!followingList.some((x) => x.id === m.id || (x.email && m.email && x.email.toLowerCase() === m.email.toLowerCase()))) {
-          followingList.push(m);
+          followingList.push({ ...m, avatar });
         }
       } else {
         const f = Array.isArray(allFollows) ? allFollows.find((item) =>
           (item.followedId && String(item.followedId).toLowerCase() === cleanFid) ||
           (item.followingId && String(item.followingId).toLowerCase() === cleanFid) ||
-          (item.followedEmail && item.followedEmail.toLowerCase() === cleanFid)
+          (item.followedEmail && item.followedEmail.toLowerCase().replace('@gamil.com', '@gmail.com') === normEmail) ||
+          (item.followedUsername && item.followedUsername.toLowerCase() === cleanFid)
         ) : null;
         if (f) {
           const uname = f.followedUsername || 'member';
-          const customAvatar = f.followedEmail ? getStoredUserAvatar(f.followedEmail) : null;
+          const femail = f.followedEmail || '';
+          let avatar = femail ? getStoredUserAvatar(femail) : null;
+          avatar = avatar || f.followedAvatar || 'assets/default-avatar.png';
+          if (femail.toLowerCase().includes('malliga') && (!avatar || avatar.includes('default-avatar'))) {
+            avatar = 'assets/avatar-malliga.jpg?v=2.2.0';
+          }
           followingList.push({
             id: f.followingId || f.followedId,
             name: f.followedName || 'Member',
             username: uname,
             handle: `@${uname}`,
             email: f.followedEmail,
-            avatar: customAvatar || f.followedAvatar || 'assets/default-avatar.png',
+            avatar,
             role: 'Reader & Collector',
             bio: '',
             accountType: 'Personal'
@@ -2733,23 +2799,37 @@ export function getFollowingForUser(targetUser) {
   if (Array.isArray(allFollows)) {
     for (const f of allFollows) {
       const fFollowerId = String(f.followerId || '').toLowerCase();
-      const fFollowerEmail = String(f.followerEmail || '').toLowerCase();
-      if ((targetId && fFollowerId === targetId) || (targetEmail && fFollowerEmail === targetEmail)) {
+      const fFollowerEmail = String(f.followerEmail || '').toLowerCase().replace('@gamil.com', '@gmail.com');
+      const fFollowerUsername = String(f.followerUsername || '').toLowerCase().replace(/^@/, '');
+      const isMatch = (targetId && fFollowerId === targetId) ||
+                      (targetEmail && fFollowerEmail === targetEmail) ||
+                      (targetUsername && fFollowerUsername && fFollowerUsername === targetUsername);
+      if (isMatch) {
         const fTgtId = String(f.followingId || f.followedId || '').toLowerCase();
-        const fTgtEmail = String(f.followedEmail || '').toLowerCase();
+        const fTgtEmail = String(f.followedEmail || '').toLowerCase().replace('@gamil.com', '@gmail.com');
         const matchedMember = allMembers.find((m) =>
           (fTgtId && String(m.id || '').toLowerCase() === fTgtId) ||
-          (fTgtEmail && String(m.email || '').toLowerCase() === fTgtEmail)
+          (fTgtEmail && String(m.email || '').toLowerCase().replace('@gamil.com', '@gmail.com') === fTgtEmail)
         );
         const uname = (matchedMember && matchedMember.username) || f.followedUsername || (f.followedName ? f.followedName.toLowerCase().replace(/[^a-z0-9_]/g, '') : 'member');
         const customAvatar = fTgtEmail ? getStoredUserAvatar(fTgtEmail) : null;
-        const resolved = matchedMember || {
+        let finalAvatar = customAvatar || (matchedMember && matchedMember.avatar) || f.followedAvatar || 'assets/default-avatar.png';
+        if (fTgtEmail.includes('malliga') && (!finalAvatar || finalAvatar.includes('default-avatar'))) {
+          finalAvatar = 'assets/avatar-malliga.jpg?v=2.2.0';
+        }
+        if (fTgtEmail === OWNER_EMAIL.toLowerCase() && (!finalAvatar || finalAvatar.includes('default-avatar'))) {
+          finalAvatar = 'assets/avatar-dhanush.jpg?v=2.2.0';
+        }
+        const resolved = matchedMember ? {
+          ...matchedMember,
+          avatar: finalAvatar
+        } : {
           id: f.followingId || f.followedId,
           name: f.followedName || 'Member',
           username: uname,
           handle: `@${uname}`,
           email: f.followedEmail,
-          avatar: customAvatar || f.followedAvatar || 'assets/default-avatar.png',
+          avatar: finalAvatar,
           role: 'Reader & Collector',
           bio: '',
           accountType: 'Personal'
@@ -2766,20 +2846,22 @@ export function getFollowingForUser(targetUser) {
 
 export function getUserProfileByIdOrEmail(identifier) {
   if (!identifier) return null;
-  const clean = String(identifier).trim().toLowerCase();
+  const clean = String(identifier).trim().toLowerCase().replace(/^@/, '');
+  const normClean = clean.replace('@gamil.com', '@gmail.com');
 
   // 1. Current Session
   const session = getCurrentSession();
   if (session) {
+    const sId = String(session.userId || session.id || '').toLowerCase();
+    const sEmail = (session.email || '').toLowerCase().replace('@gamil.com', '@gmail.com');
+    const sUname = (session.username || '').toLowerCase().replace(/^@/, '');
     if (
-      (session.userId && String(session.userId).toLowerCase() === clean) ||
-      (session.id && String(session.id).toLowerCase() === clean) ||
-      (session.email && session.email.toLowerCase() === clean) ||
-      (session.username && session.username.toLowerCase() === clean) ||
-      (session.handle && session.handle.toLowerCase() === clean) ||
+      (sId && sId === clean) ||
+      (sEmail && sEmail === normClean) ||
+      (sUname && sUname === clean) ||
       (clean === 'self')
     ) {
-      const isOwner = session.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
+      const isOwner = sEmail === OWNER_EMAIL.toLowerCase() || sId === 'usr-admin-owner';
       const username = session.username || (session.name ? session.name.toLowerCase().replace(/[^a-z0-9_]/g, '') : (session.email ? session.email.split('@')[0] : 'user'));
       return {
         id: session.userId || session.id || (isOwner ? 'usr-admin-owner' : 'usr-self'),
@@ -2796,8 +2878,8 @@ export function getUserProfileByIdOrEmail(identifier) {
     }
   }
 
-  // 2. Block any lookup for purged Dhanush Studio dummy profile
-  if (clean === 'usr-studio' || clean === 'dhanush.studio@pinterest.com' || clean === '@dhanush_studio' || clean === 'dhanush_studio' || clean === 'dhanush studio') {
+  // 2. Block purged dummy profile
+  if (clean === 'usr-studio' || clean === 'dhanush.studio@pinterest.com' || clean === 'dhanush_studio') {
     return null;
   }
 
@@ -2806,21 +2888,23 @@ export function getUserProfileByIdOrEmail(identifier) {
   const found = allMembers.find(
     (m) =>
       (m.id && String(m.id).toLowerCase() === clean) ||
-      (m.email && m.email.toLowerCase() === clean) ||
-      (m.username && m.username.toLowerCase() === clean) ||
-      (m.handle && m.handle.toLowerCase() === clean) ||
-      (m.handle && m.handle.toLowerCase() === `@${clean}`)
+      (m.email && m.email.toLowerCase().replace('@gamil.com', '@gmail.com') === normClean) ||
+      (m.username && m.username.toLowerCase().replace(/^@/, '') === clean) ||
+      (m.handle && m.handle.toLowerCase().replace(/^@/, '') === clean)
   );
   if (found) {
-    const isOwner = found.email && found.email.toLowerCase() === OWNER_EMAIL.toLowerCase();
+    const isOwner = found.email && found.email.toLowerCase().replace('@gamil.com', '@gmail.com') === OWNER_EMAIL.toLowerCase();
     const isSelfUser = session ? (
-      (found.email && session.email && found.email.toLowerCase() === session.email.toLowerCase()) ||
+      (found.email && session.email && found.email.toLowerCase().replace('@gamil.com', '@gmail.com') === session.email.toLowerCase().replace('@gamil.com', '@gmail.com')) ||
       (found.id && session.userId && String(found.id).toLowerCase() === String(session.userId).toLowerCase()) ||
       (found.id && session.id && String(found.id).toLowerCase() === String(session.id).toLowerCase())
     ) : false;
-    let avatar = found.avatar;
-    if (isOwner) {
-      avatar = getStoredUserAvatar(OWNER_EMAIL) || (found.avatar && !found.avatar.includes('default') ? found.avatar : 'assets/avatar-dhanush.jpg?v=2.2.0');
+    let avatar = (found.email ? getStoredUserAvatar(found.email) : null) || found.avatar;
+    if (isOwner && (!avatar || avatar.includes('default-avatar'))) {
+      avatar = 'assets/avatar-dhanush.jpg?v=2.2.0';
+    }
+    if (found.email && found.email.toLowerCase().includes('malliga') && (!avatar || avatar.includes('default-avatar'))) {
+      avatar = 'assets/avatar-malliga.jpg?v=2.2.0';
     }
     return {
       ...found,

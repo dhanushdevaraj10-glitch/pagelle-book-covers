@@ -41,7 +41,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const session = getCurrentSession();
   const urlParams = new URLSearchParams(window.location.search);
-  const targetParam = urlParams.get('user') || urlParams.get('id') || urlParams.get('email');
+  const targetRaw = urlParams.get('user') || urlParams.get('id') || urlParams.get('email');
+  const targetParam = targetRaw ? decodeURIComponent(targetRaw).trim().replace(/^@/, '') : null;
 
   // If unauthenticated and not targeting a community member profile, redirect to login
   if (!session && !targetParam) {
@@ -51,7 +52,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 1. Resolve which profile to display (own profile vs community member)
   let targetProfile = targetParam ? getUserProfileByIdOrEmail(targetParam) : null;
-  let activeUser = targetProfile || session || { name: 'Member', email: '', role: 'user' };
+  let activeUser = targetProfile || (targetParam ? {
+    id: targetParam,
+    name: 'Member',
+    username: targetParam,
+    handle: `@${targetParam}`,
+    email: targetParam.includes('@') ? targetParam : '',
+    role: 'Reader & Collector',
+    bio: '',
+    avatar: 'assets/default-avatar.png',
+    followerCount: 0,
+    followingCount: 0,
+    coversCount: 0,
+    isSelf: false
+  } : session) || { name: 'Member', email: '', role: 'user' };
 
   // 2. DOM elements
   const avatarImg = document.getElementById('profileAvatarImg');
@@ -124,15 +138,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   let serverProfileData = null;
 
   function calculateIsSelf() {
-    if (!targetParam) return Boolean(session);
-    if (!session) return false;
-    const sEmail = (session.email || '').toLowerCase().trim();
-    const sId = String(session.userId || session.id || '').toLowerCase().trim();
-    const aEmail = (activeUser.email || '').toLowerCase().trim();
-    const aId = String(activeUser.id || activeUser.userId || '').toLowerCase().trim();
-    if (sEmail && aEmail && sEmail === aEmail) return true;
-    if (sId && aId && sId === aId) return true;
-    return false;
+    if (targetParam) {
+      if (!session) return false;
+      const sEmail = (session.email || '').toLowerCase().trim().replace('@gamil.com', '@gmail.com');
+      const sId = String(session.userId || session.id || '').toLowerCase().trim();
+      const sUname = String(session.username || '').toLowerCase().trim().replace(/^@/, '');
+      const tParam = targetParam.toLowerCase().trim().replace('@gamil.com', '@gmail.com');
+
+      if (tParam === 'self') return true;
+      if (sEmail && tParam === sEmail) return true;
+      if (sId && tParam === sId) return true;
+      if (sUname && tParam === sUname) return true;
+
+      const aEmail = (activeUser.email || '').toLowerCase().trim().replace('@gamil.com', '@gmail.com');
+      const aId = String(activeUser.id || activeUser.userId || '').toLowerCase().trim();
+      const aUname = String(activeUser.username || '').toLowerCase().trim().replace(/^@/, '');
+      if (sEmail && aEmail && sEmail === aEmail) return true;
+      if (sId && aId && sId === aId) return true;
+      if (sUname && aUname && sUname === aUname) return true;
+      return false;
+    }
+    return Boolean(session);
   }
 
   let isSelf = calculateIsSelf();
@@ -221,13 +247,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function updateFollowersCountDisplay() {
     const followers = getFollowersForUser(activeUser);
     followersEl.textContent = String(followers.length);
-    if (isSelf) {
-      const followingIds = getFollowingUserIds();
-      followingEl.textContent = String(followingIds.length);
-    } else {
-      const following = getFollowingForUser(activeUser);
-      followingEl.textContent = String(following.length);
-    }
+    const following = getFollowingForUser(activeUser);
+    followingEl.textContent = String(following.length);
   }
 
   updateFollowButtonUI();
@@ -431,19 +452,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Sync freshest data from server
   try {
+    const targetQuery = targetParam || (session ? (session.userId || session.id || session.email) : null);
     const [members, networkData, targetData] = await Promise.all([
       syncCommunityMembersFromServer(),
       syncNetworkFromServer(),
-      targetParam ? fetchUserProfileFromServer(targetParam) : Promise.resolve(null),
+      targetQuery ? fetchUserProfileFromServer(targetQuery) : Promise.resolve(null),
       syncCommunityCovers()
     ]);
 
     if (targetData && targetData.targetUser) {
       serverProfileData = targetData;
-      activeUser = targetData.targetUser;
+      if (isSelf) {
+        const cur = getCurrentSession();
+        activeUser = { ...targetData.targetUser, ...(cur || {}) };
+      } else {
+        activeUser = targetData.targetUser;
+      }
       renderHeaderInfo();
       updateFollowButtonUI();
       renderProfileData();
+      updateFollowersCountDisplay();
+      if (followListModalOverlay && !followListModalOverlay.classList.contains('hidden')) {
+        renderFollowList();
+      }
     } else if (targetParam) {
       // Viewing community member: re-resolve with freshest synced community data
       targetProfile = getUserProfileByIdOrEmail(targetParam);
@@ -453,6 +484,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderHeaderInfo();
       updateFollowButtonUI();
       renderProfileData();
+      updateFollowersCountDisplay();
     } else {
       // Viewing self (no targetParam): safely update counts and UI from current session
       const cur = getCurrentSession();
@@ -552,10 +584,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     activeFollowTab = tabName;
 
     // Sync any registered community members & network from backend
+    const targetQuery = targetParam || (session ? (session.userId || session.id || session.email) : null);
     Promise.allSettled([
       syncCommunityMembersFromServer(),
       syncNetworkFromServer(),
-      targetParam ? fetchUserProfileFromServer(targetParam) : Promise.resolve(null)
+      targetQuery ? fetchUserProfileFromServer(targetQuery) : Promise.resolve(null)
     ]).then(([m, n, tData]) => {
       if (tData && tData.targetUser) {
         serverProfileData = tData;

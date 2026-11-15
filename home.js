@@ -39,9 +39,9 @@ function updateHeroScale() {
   if (!heroCollageEl) return;
   const stage = heroCollageEl.parentElement;
   const container = stage?.closest('.container') || stage?.parentElement;
-  const availWidth = container ? container.clientWidth : window.innerWidth;
+  const availWidth = Math.min(container ? container.clientWidth : window.innerWidth, window.innerWidth);
   const targetWidth = 820;
-  const scale = availWidth < targetWidth ? Math.max(0.32, Math.min(1, availWidth / targetWidth)) : 1;
+  const scale = availWidth < targetWidth ? Math.max(0.35, Math.min(1, availWidth / targetWidth)) : 1;
   document.documentElement.style.setProperty('--hero-scale', scale.toFixed(4));
 }
 
