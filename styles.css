@@ -4233,8 +4233,8 @@ button {
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    mask-image: none !important;
-    -webkit-mask-image: none !important;
+    mask-image: linear-gradient(to right, transparent 0%, black 3.5%, black 96.5%, transparent 100%) !important;
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 3.5%, black 96.5%, transparent 100%) !important;
   }
 
   .carousel-track {
