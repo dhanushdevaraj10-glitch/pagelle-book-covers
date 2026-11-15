@@ -110,11 +110,21 @@ function ensureStore() {
         const existingIdx = parsed.users.findIndex(u => u.email && su.email && u.email.toLowerCase() === su.email.toLowerCase());
         if (existingIdx === -1) {
           parsed.users.push(su);
-        } else if (su.isOwner && su.avatar) {
-          parsed.users[existingIdx].avatar = su.avatar;
+        } else {
+          if (su.isOwner && su.avatar) {
+            parsed.users[existingIdx].avatar = su.avatar;
+          }
+          if (su.username && !parsed.users[existingIdx].username) {
+            parsed.users[existingIdx].username = su.username;
+          }
         }
       }
     }
+    parsed.users.forEach((u) => {
+      if (!u.username) {
+        u.username = (u.name || (u.email ? u.email.split('@')[0] : 'user')).toLowerCase().replace(/[^a-z0-9_]/g, '');
+      }
+    });
     if (!parsed.sessions || typeof parsed.sessions !== 'object') parsed.sessions = {};
 
     // Guarantee primary admin always exists
@@ -329,9 +339,12 @@ function recordLoginEvent(store, req, { user, action, status = 'Success', note =
 
 function sanitizeUser(u) {
   const isDhanush = u.email && u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  const username = u.username || u.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
   return {
     id: u.id,
     name: u.name,
+    username,
+    handle: `@${username}`,
     email: u.email,
     role: u.role,
     bio: u.bio !== undefined ? u.bio : (isDhanush ? 'Thick Thighs pretty eyes' : ''),
@@ -399,12 +412,15 @@ async function handleApi(req, res, urlPath) {
     const userAvatar = user.avatar || (isDhanush ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png');
     const userBio = user.bio !== undefined ? user.bio : (isDhanush ? 'Thick Thighs pretty eyes' : '');
     const userAccountType = user.accountType || 'Personal';
+    const userUsername = user.username || user.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
 
     sendJson(res, 200, {
       session: {
         token,
         userId: user.id,
         name: user.name,
+        username: userUsername,
+        handle: `@${userUsername}`,
         email: user.email,
         role: user.role,
         avatar: userAvatar,
@@ -460,11 +476,14 @@ async function handleApi(req, res, urlPath) {
         saveStore(store);
 
         const isDhanush = existingUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+        const existingUsername = existingUser.username || existingUser.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
         sendJson(res, 200, {
           session: {
             token,
             userId: existingUser.id,
             name: existingUser.name,
+            username: existingUsername,
+            handle: `@${existingUsername}`,
             email: existingUser.email,
             role: existingUser.role,
             avatar: existingUser.avatar || (isDhanush ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png'),
@@ -481,9 +500,11 @@ async function handleApi(req, res, urlPath) {
 
     const now = new Date().toISOString();
     const isOwner = email === ADMIN_EMAIL;
+    const cleanUsername = sanitizeText(body.username || name || email.split('@')[0], 40).toLowerCase().replace(/[^a-z0-9_]/g, '') || email.split('@')[0];
     const newUser = {
       id: `usr-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
       name,
+      username: cleanUsername,
       email,
       passwordHash: hashPassword(password),
       role: isOwner ? 'admin' : 'user',
@@ -508,6 +529,8 @@ async function handleApi(req, res, urlPath) {
         token,
         userId: newUser.id,
         name: newUser.name,
+        username: cleanUsername,
+        handle: `@${cleanUsername}`,
         email: newUser.email,
         role: newUser.role,
         avatar: newUser.avatar || 'assets/default-avatar.png',
@@ -739,15 +762,24 @@ async function handleApi(req, res, urlPath) {
       const uEmail = (u.email || '').toLowerCase();
       const uId = u.id;
       const followerCount = allFollows.filter(f =>
-        (uId && f.followedId === uId) || (uEmail && f.followedEmail && f.followedEmail.toLowerCase() === uEmail)
+        (uId && (f.followingId === uId || f.followedId === uId)) ||
+        (uEmail && f.followedEmail && f.followedEmail.toLowerCase() === uEmail)
       ).length;
       const followingCount = allFollows.filter(f =>
-        (uId && f.followerId === uId) || (uEmail && f.followerEmail && f.followerEmail.toLowerCase() === uEmail)
+        (uId && f.followerId === uId) ||
+        (uEmail && f.followerEmail && f.followerEmail.toLowerCase() === uEmail)
+      ).length;
+      const coversCount = (store.communityCovers || []).filter(c =>
+        (uEmail && c.submittedByEmail && c.submittedByEmail.toLowerCase() === uEmail) ||
+        (uId && c.submittedById && c.submittedById === uId)
       ).length;
 
+      const username = u.username || u.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
       return {
         id: u.id,
         name: u.name,
+        username,
+        handle: `@${username}`,
         email: u.email,
         role: u.role,
         accountType: u.accountType || 'Personal',
@@ -755,6 +787,7 @@ async function handleApi(req, res, urlPath) {
         bio: u.bio || '',
         followerCount,
         followingCount,
+        coversCount,
         createdAt: u.createdAt
       };
     });
@@ -783,51 +816,80 @@ async function handleApi(req, res, urlPath) {
       requester = store.users.find(u => u.email.toLowerCase() === req.headers['x-user-email'].toLowerCase().trim());
     }
 
+    // Resolve target in store.users if possible
+    let targetUser = store.users.find(u =>
+      (targetId && (u.id === targetId || u.username === targetId)) ||
+      (targetEmail && u.email.toLowerCase() === targetEmail)
+    );
+    if (!targetUser && (targetEmail === ADMIN_EMAIL.toLowerCase() || targetId === 'usr-admin-owner' || targetId === 'dhanush')) {
+      targetUser = store.users.find(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+    }
+
+    const cleanTargetId = targetUser ? targetUser.id : targetId;
+    const cleanTargetEmail = targetUser ? targetUser.email.toLowerCase() : targetEmail;
+
     const followers = allFollows.filter(f =>
-      (targetId && f.followedId === targetId) ||
-      (targetEmail && f.followedEmail && f.followedEmail.toLowerCase() === targetEmail)
+      (cleanTargetId && (f.followingId === cleanTargetId || f.followedId === cleanTargetId)) ||
+      (cleanTargetEmail && f.followedEmail && f.followedEmail.toLowerCase() === cleanTargetEmail)
     ).map(f => {
       const u = store.users.find(user => (f.followerId && user.id === f.followerId) || (f.followerEmail && user.email.toLowerCase() === f.followerEmail.toLowerCase()));
+      const uname = (u && u.username) || (u && u.name.toLowerCase().replace(/[^a-z0-9_]/g, '')) || f.followerUsername || 'member';
       return {
         id: f.followerId,
         name: f.followerName || (u ? u.name : 'Member'),
+        username: uname,
+        handle: `@${uname}`,
         email: f.followerEmail,
         avatar: (u && u.avatar) || f.followerAvatar || 'assets/default-avatar.png',
         role: (u && u.role) || 'Collector',
         bio: (u && u.bio) || '',
+        followedAt: f.followedAt || f.createdAt,
         createdAt: f.createdAt
       };
     });
 
     const following = allFollows.filter(f =>
-      (targetId && f.followerId === targetId) ||
-      (targetEmail && f.followerEmail && f.followerEmail.toLowerCase() === targetEmail)
+      (cleanTargetId && f.followerId === cleanTargetId) ||
+      (cleanTargetEmail && f.followerEmail && f.followerEmail.toLowerCase() === cleanTargetEmail)
     ).map(f => {
-      const u = store.users.find(user => (f.followedId && user.id === f.followedId) || (f.followedEmail && user.email.toLowerCase() === f.followedEmail.toLowerCase()));
+      const fTgtId = f.followingId || f.followedId;
+      const u = store.users.find(user => (fTgtId && user.id === fTgtId) || (f.followedEmail && user.email.toLowerCase() === f.followedEmail.toLowerCase()));
+      const uname = (u && u.username) || (u && u.name.toLowerCase().replace(/[^a-z0-9_]/g, '')) || f.followedUsername || 'member';
       return {
-        id: f.followedId,
+        id: fTgtId,
         name: f.followedName || (u ? u.name : 'Member'),
+        username: uname,
+        handle: `@${uname}`,
         email: f.followedEmail,
-        avatar: (u && u.avatar) || 'assets/default-avatar.png',
+        avatar: (u && u.avatar) || f.followedAvatar || 'assets/default-avatar.png',
         role: (u && u.role) || 'Collector',
         bio: (u && u.bio) || '',
+        followedAt: f.followedAt || f.createdAt,
         createdAt: f.createdAt
       };
     });
 
     const isFollowing = requester ? allFollows.some(f =>
       ((f.followerId && f.followerId === requester.id) || (f.followerEmail && f.followerEmail.toLowerCase() === requester.email.toLowerCase())) &&
-      ((targetId && f.followedId === targetId) || (targetEmail && f.followedEmail && f.followedEmail.toLowerCase() === targetEmail))
+      ((cleanTargetId && (f.followingId === cleanTargetId || f.followedId === cleanTargetId)) || (cleanTargetEmail && f.followedEmail && f.followedEmail.toLowerCase() === cleanTargetEmail))
     ) : false;
+
+    const covers = (store.communityCovers || []).filter(c =>
+      (cleanTargetEmail && c.submittedByEmail && c.submittedByEmail.toLowerCase() === cleanTargetEmail) ||
+      (cleanTargetId && c.submittedById && c.submittedById === cleanTargetId)
+    );
 
     sendJson(res, 200, {
       ok: true,
-      targetId,
-      targetEmail,
+      targetUser: targetUser ? sanitizeUser(targetUser) : null,
+      targetId: cleanTargetId,
+      targetEmail: cleanTargetEmail,
       followers,
       following,
       followerCount: followers.length,
       followingCount: following.length,
+      coversCount: covers.length,
+      covers,
       isFollowing
     });
     return;
@@ -874,27 +936,37 @@ async function handleApi(req, res, urlPath) {
 
     // Resolve target in store.users if possible
     let targetUser = store.users.find(u =>
-      (targetId && u.id === targetId) ||
+      (targetId && (u.id === targetId || u.username === targetId)) ||
       (targetEmail && u.email.toLowerCase() === targetEmail)
     );
 
-    if (!targetUser && (targetEmail === ADMIN_EMAIL.toLowerCase() || targetId === 'usr-admin-owner')) {
+    if (!targetUser && (targetEmail === ADMIN_EMAIL.toLowerCase() || targetId === 'usr-admin-owner' || targetId === 'dhanush')) {
       targetUser = store.users.find(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
     }
 
     const cleanTargetId = targetUser ? targetUser.id : targetId;
     const cleanTargetEmail = targetUser ? targetUser.email.toLowerCase() : targetEmail;
     const targetName = targetUser ? targetUser.name : (cleanTargetEmail ? cleanTargetEmail.split('@')[0] : 'Member');
+    const targetUsername = targetUser ? (targetUser.username || targetName.toLowerCase().replace(/[^a-z0-9_]/g, '')) : (cleanTargetEmail ? cleanTargetEmail.split('@')[0] : 'member');
+    const followerUsername = follower.username || follower.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
+
+    // Strict self-follow check on resolved IDs
+    if (cleanTargetId === selfId || (selfEmail && cleanTargetEmail && cleanTargetEmail === selfEmail)) {
+      sendJson(res, 400, { error: 'You cannot follow yourself.' });
+      return;
+    }
 
     if (!Array.isArray(store.follows)) store.follows = [];
 
     const existingIdx = store.follows.findIndex(f => {
       const isMe = (f.followerId && f.followerId === selfId) || (f.followerEmail && f.followerEmail.toLowerCase() === selfEmail);
-      const isTarget = (cleanTargetId && f.followedId === cleanTargetId) || (cleanTargetEmail && f.followedEmail && f.followedEmail.toLowerCase() === cleanTargetEmail);
+      const isTarget = (cleanTargetId && (f.followingId === cleanTargetId || f.followedId === cleanTargetId)) ||
+                       (cleanTargetEmail && f.followedEmail && f.followedEmail.toLowerCase() === cleanTargetEmail);
       return isMe && isTarget;
     });
 
     let nowFollowing = false;
+    const nowIso = new Date().toISOString();
     if (existingIdx >= 0) {
       store.follows.splice(existingIdx, 1);
       nowFollowing = false;
@@ -904,11 +976,16 @@ async function handleApi(req, res, urlPath) {
         followerId: selfId,
         followerEmail: selfEmail,
         followerName: follower.name || selfEmail.split('@')[0],
+        followerUsername,
         followerAvatar: follower.avatar || 'assets/default-avatar.png',
+        followingId: cleanTargetId,
         followedId: cleanTargetId,
         followedEmail: cleanTargetEmail,
         followedName: targetName,
-        createdAt: new Date().toISOString()
+        followedUsername: targetUsername,
+        followedAvatar: (targetUser && targetUser.avatar) || 'assets/default-avatar.png',
+        followedAt: nowIso,
+        createdAt: nowIso
       });
       nowFollowing = true;
     }
@@ -916,7 +993,7 @@ async function handleApi(req, res, urlPath) {
     saveStore(store);
 
     const targetFollowers = store.follows.filter(f =>
-      (cleanTargetId && f.followedId === cleanTargetId) ||
+      (cleanTargetId && (f.followingId === cleanTargetId || f.followedId === cleanTargetId)) ||
       (cleanTargetEmail && f.followedEmail && f.followedEmail.toLowerCase() === cleanTargetEmail)
     );
     const targetFollowing = store.follows.filter(f =>

@@ -19,6 +19,12 @@
     // Fall through to redirect
   }
 
+  // Allow unauthenticated viewers to view public community member profiles
+  var search = window.location.search || '';
+  if (search && (search.includes('user=') || search.includes('id=') || search.includes('email='))) {
+    return;
+  }
+
   document.documentElement.style.display = 'none';
   var target = window.location.pathname + window.location.search;
   window.location.replace('login.html?next=' + encodeURIComponent(target));

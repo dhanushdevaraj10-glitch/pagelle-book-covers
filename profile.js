@@ -23,8 +23,9 @@ import {
   getFollowersForUser,
   getFollowingForUser,
   getUserProfileByIdOrEmail,
+  fetchUserProfileFromServer,
   getMemberPosts
-} from './shared.js?v=2.0.4';
+} from './shared.js?v=2.0.5';
 
 function escapeHtml(str) {
   return String(str || '')
@@ -39,36 +40,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   initAuthHeader();
 
   const session = getCurrentSession();
-  if (!session) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const targetParam = urlParams.get('user') || urlParams.get('id') || urlParams.get('email');
+
+  // If unauthenticated and not targeting a community member profile, redirect to login
+  if (!session && !targetParam) {
     window.location.replace('login.html?next=profile.html');
     return;
   }
 
   // 1. Resolve which profile to display (own profile vs community member)
-  const urlParams = new URLSearchParams(window.location.search);
-  const targetParam = urlParams.get('user') || urlParams.get('id') || urlParams.get('email');
   let targetProfile = targetParam ? getUserProfileByIdOrEmail(targetParam) : null;
-  const activeUser = targetProfile || session;
-
-  // Sync community members & network in the background / upfront
-  try {
-    await Promise.allSettled([
-      syncCommunityMembersFromServer(),
-      syncNetworkFromServer()
-    ]);
-    if (targetParam && !targetProfile) {
-      targetProfile = getUserProfileByIdOrEmail(targetParam);
-    }
-  } catch {}
-
-  const isSelf = !targetParam || (
-    (activeUser.email && activeUser.email.toLowerCase() === session.email.toLowerCase()) ||
-    (activeUser.id && (activeUser.id === session.userId || activeUser.id === session.id))
-  );
+  let activeUser = targetProfile || session || { name: 'Member', email: '', role: 'user' };
 
   // 2. DOM elements
   const avatarImg = document.getElementById('profileAvatarImg');
   const nameEl = document.getElementById('profileDisplayName');
+  const handleEl = document.getElementById('profileHandle');
   const bioEl = document.getElementById('profileBio');
   const followersEl = document.getElementById('profileFollowers');
   const followingEl = document.getElementById('profileFollowing');
@@ -133,46 +121,74 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let activeFollowTab = 'explore';
   let pendingAvatarDataUrl = null;
+  let serverProfileData = null;
+
+  function calculateIsSelf() {
+    if (!targetParam) return Boolean(session);
+    if (!session) return false;
+    const sEmail = (session.email || '').toLowerCase().trim();
+    const sId = String(session.userId || session.id || '').toLowerCase().trim();
+    const aEmail = (activeUser.email || '').toLowerCase().trim();
+    const aId = String(activeUser.id || activeUser.userId || '').toLowerCase().trim();
+    if (sEmail && aEmail && sEmail === aEmail) return true;
+    if (sId && aId && sId === aId) return true;
+    return false;
+  }
+
+  let isSelf = calculateIsSelf();
 
   // 3. Render Profile Header Info
-  nameEl.textContent = activeUser.name || (activeUser.email ? activeUser.email.split('@')[0] : 'User');
-  const isOwner = activeUser.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
-  const fallbackAvatar = isOwner ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png';
-  avatarImg.src = activeUser.avatar || fallbackAvatar;
-  avatarImg.onerror = () => {
-    avatarImg.src = fallbackAvatar;
-  };
+  function renderHeaderInfo() {
+    isSelf = calculateIsSelf();
+    const displayName = activeUser.name || (activeUser.email ? activeUser.email.split('@')[0] : 'User');
+    nameEl.textContent = displayName;
 
-  if (activeUser.bio && activeUser.bio.trim()) {
-    bioEl.textContent = activeUser.bio.trim();
-    bioEl.classList.remove('hidden');
-  } else if (isOwner) {
-    bioEl.textContent = 'Thick Thighs pretty eyes';
-    bioEl.classList.remove('hidden');
-  } else {
-    bioEl.textContent = '';
-    bioEl.classList.add('hidden');
+    if (handleEl) {
+      const uname = activeUser.username || (activeUser.name ? activeUser.name.toLowerCase().replace(/[^a-z0-9_]/g, '') : (activeUser.email ? activeUser.email.split('@')[0] : 'user'));
+      handleEl.textContent = `@${uname.replace(/^@/, '')}`;
+      handleEl.classList.remove('hidden');
+    }
+
+    const isOwner = activeUser.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
+    const fallbackAvatar = isOwner ? 'assets/avatar-dhanush.jpg' : 'assets/default-avatar.png';
+    avatarImg.src = activeUser.avatar || fallbackAvatar;
+    avatarImg.onerror = () => {
+      avatarImg.src = fallbackAvatar;
+    };
+
+    if (activeUser.bio && activeUser.bio.trim()) {
+      bioEl.textContent = activeUser.bio.trim();
+      bioEl.classList.remove('hidden');
+    } else if (isOwner) {
+      bioEl.textContent = 'Thick Thighs pretty eyes';
+      bioEl.classList.remove('hidden');
+    } else {
+      bioEl.textContent = '';
+      bioEl.classList.add('hidden');
+    }
+
+    // Handle Viewing Self vs Community Member
+    const isOwnerAdmin = session && (session.role === 'admin' || (session.email && session.email.toLowerCase() === OWNER_EMAIL.toLowerCase()));
+    if (isSelf) {
+      if (viewingBanner) viewingBanner.classList.add('hidden');
+      if (avatarPlusBtn) avatarPlusBtn.classList.remove('hidden');
+      if (quickEditBtn) quickEditBtn.classList.remove('hidden');
+      if (editBtn) editBtn.classList.remove('hidden');
+      if (profileAdminBtn) profileAdminBtn.classList.toggle('hidden', !isOwnerAdmin);
+      if (createBtn) createBtn.classList.remove('hidden');
+      if (followBtn) followBtn.classList.add('hidden');
+    } else {
+      if (viewingBanner) viewingBanner.classList.remove('hidden');
+      if (avatarPlusBtn) avatarPlusBtn.classList.add('hidden');
+      if (quickEditBtn) quickEditBtn.classList.add('hidden');
+      if (editBtn) editBtn.classList.add('hidden');
+      if (profileAdminBtn) profileAdminBtn.classList.add('hidden');
+      if (createBtn) createBtn.classList.add('hidden');
+      if (followBtn) followBtn.classList.remove('hidden');
+    }
   }
 
-  // Handle Viewing Self vs Community Member
-  const isOwnerAdmin = session.role === 'admin' || (session.email && session.email.toLowerCase() === OWNER_EMAIL.toLowerCase());
-  if (isSelf) {
-    if (viewingBanner) viewingBanner.classList.add('hidden');
-    if (avatarPlusBtn) avatarPlusBtn.classList.remove('hidden');
-    if (quickEditBtn) quickEditBtn.classList.remove('hidden');
-    if (editBtn) editBtn.classList.remove('hidden');
-    if (profileAdminBtn) profileAdminBtn.classList.toggle('hidden', !isOwnerAdmin);
-    if (createBtn) createBtn.classList.remove('hidden');
-    if (followBtn) followBtn.classList.add('hidden');
-  } else {
-    if (viewingBanner) viewingBanner.classList.remove('hidden');
-    if (avatarPlusBtn) avatarPlusBtn.classList.add('hidden');
-    if (quickEditBtn) quickEditBtn.classList.add('hidden');
-    if (editBtn) editBtn.classList.add('hidden');
-    if (profileAdminBtn) profileAdminBtn.classList.add('hidden');
-    if (createBtn) createBtn.classList.add('hidden');
-    if (followBtn) followBtn.classList.remove('hidden');
-  }
+  renderHeaderInfo();
 
   // 4. Follow Button Interaction
   function updateFollowButtonUI() {
@@ -183,7 +199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     followBtn.classList.remove('hidden');
-    const targetId = activeUser.id || activeUser.userId;
+    const targetId = activeUser.id || activeUser.userId || activeUser.email;
     const isFollowing = isFollowingUser(targetId);
 
     if (isFollowing) {
@@ -221,6 +237,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (followBtn) {
     followBtn.addEventListener('click', async () => {
       if (isSelf) return; // Prevent any self-follow
+      if (!session) {
+        showToast('Please sign in to follow community members.');
+        const target = window.location.pathname + window.location.search;
+        setTimeout(() => {
+          window.location.href = 'login.html?next=' + encodeURIComponent(target);
+        }, 500);
+        return;
+      }
+
       const targetId = activeUser.id || activeUser.userId || activeUser.email;
       if (!targetId) return;
       followBtn.disabled = true;
@@ -407,14 +432,41 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Sync freshest data from server
-  await syncCommunityCovers();
+  try {
+    const [members, networkData, targetData] = await Promise.all([
+      syncCommunityMembersFromServer(),
+      syncNetworkFromServer(),
+      targetParam ? fetchUserProfileFromServer(targetParam) : Promise.resolve(null),
+      syncCommunityCovers()
+    ]);
+
+    if (targetData && targetData.targetUser) {
+      serverProfileData = targetData;
+      activeUser = targetData.targetUser;
+      renderHeaderInfo();
+      updateFollowButtonUI();
+      renderProfileData();
+    } else if (targetParam && !targetProfile) {
+      targetProfile = getUserProfileByIdOrEmail(targetParam);
+      if (targetProfile) {
+        activeUser = targetProfile;
+        renderHeaderInfo();
+        updateFollowButtonUI();
+        renderProfileData();
+      }
+    }
+  } catch {}
 
   // 8. Render Book Covers Gallery for active user
   function renderProfileData() {
-    const memberCovers = getMemberPosts(activeUser);
+    let memberCovers = getMemberPosts(activeUser);
+    if (memberCovers.length === 0 && serverProfileData && Array.isArray(serverProfileData.covers) && serverProfileData.covers.length > 0) {
+      memberCovers = serverProfileData.covers;
+    }
 
-    postsCountEl.textContent = String(memberCovers.length);
-    tabCreatedCountEl.textContent = String(memberCovers.length);
+    const coversCount = typeof activeUser.coversCount === 'number' ? activeUser.coversCount : memberCovers.length;
+    postsCountEl.textContent = String(coversCount);
+    tabCreatedCountEl.textContent = String(coversCount);
 
     // Render Created Covers grid
     userPostsGrid.innerHTML = '';
@@ -463,8 +515,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 9. Followers, Following & Community Profiles Exploration Logic
   function getExploreMembers() {
     const allMembers = getAllCommunityMembers();
-    const currentSelfId = String(session.userId || session.id || '').toLowerCase();
-    const currentSelfEmail = (session.email || '').toLowerCase();
+    const currentSelfId = session ? String(session.userId || session.id || '').toLowerCase() : '';
+    const currentSelfEmail = session && session.email ? session.email.toLowerCase() : '';
 
     // STRICT DEDUPLICATION AND NO SELF:
     // Only return community members that are NOT the logged in user
@@ -491,8 +543,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Sync any registered community members & network from backend
     Promise.allSettled([
       syncCommunityMembersFromServer(),
-      syncNetworkFromServer()
-    ]).then(() => {
+      syncNetworkFromServer(),
+      targetParam ? fetchUserProfileFromServer(targetParam) : Promise.resolve(null)
+    ]).then(([m, n, tData]) => {
+      if (tData && tData.targetUser) {
+        serverProfileData = tData;
+      }
       renderFollowList();
       updateFollowersCountDisplay();
     }).catch(() => {});
@@ -555,11 +611,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       listToRender = baseList.filter((m) => {
         const name = (m.name || '').toLowerCase();
+        const username = (m.username || '').toLowerCase();
         const handle = (m.handle || '').toLowerCase();
         const role = (m.role || '').toLowerCase();
         const bio = (m.bio || '').toLowerCase();
         const email = (m.email || '').toLowerCase();
-        return name.includes(query) || handle.includes(query) || role.includes(query) || bio.includes(query) || email.includes(query);
+        return name.includes(query) || username.includes(query) || handle.includes(query) || role.includes(query) || bio.includes(query) || email.includes(query);
       });
     } else {
       if (activeFollowTab === 'explore') {
@@ -628,25 +685,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     listToRender.forEach((member) => {
-      const isSelfMember = (member.isSelf || (session && member.email?.toLowerCase() === session.email?.toLowerCase()) || (session && member.id === session.userId));
+      const isSelfMember = session ? (
+        member.isSelf ||
+        (member.email && session.email && member.email.toLowerCase() === session.email.toLowerCase()) ||
+        (member.id && session.userId && member.id === session.userId) ||
+        (member.id && session.id && member.id === session.id)
+      ) : false;
+
       const following = isFollowingUser(member.id || member.email);
       const memberPosts = getMemberPosts(member);
+      const uname = member.username || (member.name ? member.name.toLowerCase().replace(/[^a-z0-9_]/g, '') : (member.email ? member.email.split('@')[0] : 'user'));
+      const handle = `@${uname.replace(/^@/, '')}`;
+      const coversCount = typeof member.coversCount === 'number' ? member.coversCount : memberPosts.length;
 
       const card = document.createElement('div');
       card.className = 'follow-user-card';
 
       card.innerHTML = `
-        <a href="profile.html?user=${encodeURIComponent(member.id || member.email)}" class="follow-user-link" title="View ${escapeHtml(member.name)}'s profile">
+        <a href="profile.html?user=${encodeURIComponent(member.id || member.username || member.email)}" class="follow-user-link" title="View ${escapeHtml(member.name)}'s profile">
           <img src="${member.avatar || 'assets/default-avatar.png'}" class="follow-user-avatar" alt="${escapeHtml(member.name)}" onerror="this.src='assets/default-avatar.png'" />
           <div class="follow-user-meta">
             <div class="follow-user-name-line">
               <span class="follow-user-name">${escapeHtml(member.name)}</span>
-              ${member.handle ? `<span class="follow-user-handle">${escapeHtml(member.handle)}</span>` : ''}
+              <span class="follow-user-handle">${escapeHtml(handle)}</span>
             </div>
             ${member.role ? `<div class="follow-user-role">${escapeHtml(member.role)}</div>` : ''}
             ${member.bio ? `<div class="follow-user-bio">${escapeHtml(member.bio)}</div>` : ''}
             <div class="follow-user-stats">
-              <span>${memberPosts.length} covers posted</span>
+              <span>${coversCount} covers posted</span>
               <span class="follow-card-view-btn">View Profile &rarr;</span>
             </div>
           </div>
