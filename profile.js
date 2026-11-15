@@ -25,7 +25,7 @@ import {
   getUserProfileByIdOrEmail,
   fetchUserProfileFromServer,
   getMemberPosts
-} from './shared.js?v=2.0.5';
+} from './shared.js?v=2.1.0';
 
 function escapeHtml(str) {
   return String(str || '')
