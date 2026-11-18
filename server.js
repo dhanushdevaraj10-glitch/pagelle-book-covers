@@ -192,9 +192,10 @@ function ensureStore() {
       userId: 'usr-admin-owner',
       createdAt: new Date().toISOString()
     };
+    if (!Array.isArray(parsed.deletedCoverIds)) parsed.deletedCoverIds = [];
     return parsed;
   } catch {
-    return { users: [], loginLogs: [], communityCovers: [], sessions: {}, follows: [] };
+    return { users: [], loginLogs: [], communityCovers: [], sessions: {}, follows: [], deletedCoverIds: [] };
   }
 }
 
@@ -747,6 +748,15 @@ async function handleApi(req, res, urlPath) {
         if (store.sessions[t].userId === targetUser.id) delete store.sessions[t];
       });
       // Remove covers submitted by this account
+      const removedCovers = (store.communityCovers || []).filter(
+        (c) => c && c.submittedByEmail && c.submittedByEmail.toLowerCase() === targetEmail
+      );
+      if (!Array.isArray(store.deletedCoverIds)) store.deletedCoverIds = [];
+      removedCovers.forEach((c) => {
+        if (c.id && !store.deletedCoverIds.includes(c.id)) {
+          store.deletedCoverIds.push(c.id);
+        }
+      });
       store.communityCovers = store.communityCovers.filter(
         (c) => !c.submittedByEmail || c.submittedByEmail.toLowerCase() !== targetEmail
       );
@@ -1172,7 +1182,18 @@ async function handleApi(req, res, urlPath) {
   }
 
   if (urlPath === '/api/covers' && req.method === 'GET') {
-    sendJson(res, 200, { covers: store.communityCovers || [] });
+    if (!Array.isArray(store.communityCovers)) store.communityCovers = [];
+    if (!Array.isArray(store.deletedCoverIds)) store.deletedCoverIds = [];
+    // Ensure any tombstoned covers are pruned from communityCovers
+    if (store.deletedCoverIds.length > 0) {
+      store.communityCovers = store.communityCovers.filter(
+        (c) => c && c.id && !store.deletedCoverIds.includes(c.id)
+      );
+    }
+    sendJson(res, 200, {
+      covers: store.communityCovers || [],
+      deletedCoverIds: store.deletedCoverIds || []
+    });
     return;
   }
 
@@ -1181,9 +1202,12 @@ async function handleApi(req, res, urlPath) {
     const incoming = Array.isArray(body.covers) ? body.covers : [];
     let added = 0;
     if (!Array.isArray(store.communityCovers)) store.communityCovers = [];
+    if (!Array.isArray(store.deletedCoverIds)) store.deletedCoverIds = [];
     for (const c of incoming) {
       if (!c || !c.title || !c.image) continue;
       const cid = c.id && /^user-[a-zA-Z0-9_-]+$/.test(c.id) ? c.id : `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      // CRITICAL: Never resurrect deleted covers
+      if (store.deletedCoverIds.includes(cid)) continue;
       const existingIdx = store.communityCovers.findIndex((x) => x.id === cid);
       if (existingIdx === -1) {
         store.communityCovers.unshift({
@@ -1208,7 +1232,12 @@ async function handleApi(req, res, urlPath) {
     if (added > 0) {
       saveStore(store);
     }
-    sendJson(res, 200, { ok: true, count: store.communityCovers.length, covers: store.communityCovers });
+    sendJson(res, 200, {
+      ok: true,
+      count: store.communityCovers.length,
+      covers: store.communityCovers,
+      deletedCoverIds: store.deletedCoverIds
+    });
     return;
   }
 
@@ -1228,8 +1257,9 @@ async function handleApi(req, res, urlPath) {
       sendJson(res, 400, { error: 'Invalid or unsafe image format. Please upload or link a valid image.' });
       return;
     }
+    const coverId = body.id && /^user-[a-zA-Z0-9_-]+$/.test(body.id) ? body.id : `user-${Date.now()}`;
     const cover = {
-      id: body.id && /^user-[a-zA-Z0-9_-]+$/.test(body.id) ? body.id : `user-${Date.now()}`,
+      id: coverId,
       title: sanitizeText(body.title, 80),
       author: sanitizeText(body.author, 60),
       genre: sanitizeText(body.genre || 'Fiction', 30),
@@ -1245,6 +1275,9 @@ async function handleApi(req, res, urlPath) {
       createdAt: new Date().toISOString()
     };
     if (!Array.isArray(store.communityCovers)) store.communityCovers = [];
+    if (!Array.isArray(store.deletedCoverIds)) store.deletedCoverIds = [];
+    // If re-creating or un-tombstoning
+    store.deletedCoverIds = store.deletedCoverIds.filter((id) => id !== cover.id);
     store.communityCovers = store.communityCovers.filter((c) => c.id !== cover.id);
     store.communityCovers.unshift(cover);
     saveStore(store);
@@ -1259,20 +1292,39 @@ async function handleApi(req, res, urlPath) {
       return;
     }
     const body = await readJsonBody(req);
-    const target = store.communityCovers.find((c) => c.id === body.coverId);
-    if (!target) {
-      sendJson(res, 404, { error: 'Cover not found.' });
+    if (!body.coverId) {
+      sendJson(res, 400, { error: 'Cover ID is required.' });
       return;
     }
-    const isAdmin = auth.user.role === 'admin';
-    const isCreator = target.submittedByEmail && target.submittedByEmail.toLowerCase() === auth.user.email.toLowerCase();
+    if (!Array.isArray(store.communityCovers)) store.communityCovers = [];
+    if (!Array.isArray(store.deletedCoverIds)) store.deletedCoverIds = [];
+
+    const target = store.communityCovers.find((c) => c.id === body.coverId);
+    if (!target) {
+      // Register tombstone anyway to ensure it is never resurrected
+      if (!store.deletedCoverIds.includes(body.coverId)) {
+        store.deletedCoverIds.push(body.coverId);
+        saveStore(store);
+      }
+      sendJson(res, 200, { ok: true, deletedCoverId: body.coverId });
+      return;
+    }
+
+    const isAdmin = auth.user.role === 'admin' || auth.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    const isCreator = (target.submittedByEmail && target.submittedByEmail.toLowerCase() === auth.user.email.toLowerCase()) ||
+                      (target.submittedById && target.submittedById === auth.user.id) ||
+                      (target.submittedByName && auth.user.name && target.submittedByName.toLowerCase() === auth.user.name.toLowerCase());
     if (!isAdmin && !isCreator) {
       sendJson(res, 403, { error: 'Only administrators or the cover creator can delete this cover.' });
       return;
     }
+
+    if (!store.deletedCoverIds.includes(target.id)) {
+      store.deletedCoverIds.push(target.id);
+    }
     store.communityCovers = store.communityCovers.filter((c) => c.id !== target.id);
     saveStore(store);
-    sendJson(res, 200, { ok: true });
+    sendJson(res, 200, { ok: true, deletedCoverId: target.id });
     return;
   }
 

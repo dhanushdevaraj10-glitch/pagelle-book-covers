@@ -1611,7 +1611,7 @@
     },
     "pagelle_admin_master_session_token_dhanush_2026": {
       "userId": "usr-admin-owner",
-      "createdAt": "2026-11-15T06:38:39.424Z"
+      "createdAt": "2026-11-18T08:43:49.236Z"
     }
   },
   "follows": [
@@ -1695,5 +1695,6 @@
       "followedAt": "2026-11-15T09:35:21.838Z",
       "createdAt": "2026-11-15T09:35:21.838Z"
     }
-  ]
+  ],
+  "deletedCoverIds": []
 }

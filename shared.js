@@ -2,10 +2,33 @@ import { CURATED_BOOKS } from './data.js';
 
 export const STORAGE_USER_BOOKS_KEY = 'best_book_covers_user_v1';
 export const STORAGE_FAVORITES_KEY = 'best_book_covers_favs_v1';
+export const STORAGE_DELETED_COVERS_KEY = 'best_book_covers_deleted_covers_v1';
 
 let toastTimer = null;
 
 let serverCoversCache = null;
+
+export function getDeletedCoverIds() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_DELETED_COVERS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function markCoverDeleted(coverId) {
+  if (!coverId || typeof window === 'undefined') return;
+  try {
+    const list = getDeletedCoverIds();
+    if (!list.includes(coverId)) {
+      list.push(coverId);
+      localStorage.setItem(STORAGE_DELETED_COVERS_KEY, JSON.stringify(list));
+    }
+  } catch {}
+}
 
 // Real-time cross-tab broadcast channel for book covers
 const coversBroadcastChannel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined'
@@ -14,15 +37,27 @@ const coversBroadcastChannel = typeof window !== 'undefined' && typeof Broadcast
 
 if (coversBroadcastChannel) {
   coversBroadcastChannel.onmessage = (event) => {
-    if (event && event.data && event.data.type === 'PAGELLE_COVERS_UPDATED') {
+    if (!event || !event.data) return;
+    if (event.data.type === 'PAGELLE_COVERS_DELETED') {
+      const deletedId = event.data.coverId;
+      if (deletedId) markCoverDeleted(deletedId);
+      const remaining = loadUserBooks().filter((c) => c && c.id !== deletedId);
+      serverCoversCache = remaining;
+      try {
+        localStorage.setItem(STORAGE_USER_BOOKS_KEY, JSON.stringify(remaining));
+      } catch {}
+      window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: remaining }));
+      return;
+    }
+    if (event.data.type === 'PAGELLE_COVERS_UPDATED') {
       const covers = Array.isArray(event.data.covers) ? event.data.covers : [];
-      if (covers.length > 0) {
-        serverCoversCache = covers;
-        try {
-          localStorage.setItem(STORAGE_USER_BOOKS_KEY, JSON.stringify(covers));
-        } catch {}
-        window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: covers }));
-      }
+      const deleted = new Set(getDeletedCoverIds());
+      const filtered = covers.filter((c) => c && c.id && !deleted.has(c.id));
+      serverCoversCache = filtered;
+      try {
+        localStorage.setItem(STORAGE_USER_BOOKS_KEY, JSON.stringify(filtered));
+      } catch {}
+      window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: filtered }));
     }
   };
 }
@@ -30,12 +65,22 @@ if (coversBroadcastChannel) {
 if (typeof window !== 'undefined') {
   // Listen for storage changes across browser tabs
   window.addEventListener('storage', (e) => {
-    if (e.key === STORAGE_USER_BOOKS_KEY && e.newValue) {
+    if (e.key === STORAGE_DELETED_COVERS_KEY && e.newValue) {
+      const deleted = getDeletedCoverIds();
+      const current = loadUserBooks().filter((c) => c && c.id && !deleted.includes(c.id));
+      serverCoversCache = current;
+      try {
+        localStorage.setItem(STORAGE_USER_BOOKS_KEY, JSON.stringify(current));
+      } catch {}
+      window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: current }));
+    } else if (e.key === STORAGE_USER_BOOKS_KEY && e.newValue) {
       try {
         const parsed = JSON.parse(e.newValue);
         if (Array.isArray(parsed)) {
-          serverCoversCache = parsed;
-          window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: parsed }));
+          const deleted = new Set(getDeletedCoverIds());
+          const cleaned = parsed.filter((c) => c && c.id && !deleted.has(c.id));
+          serverCoversCache = cleaned;
+          window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: cleaned }));
         }
       } catch {}
     }
@@ -57,24 +102,30 @@ if (typeof window !== 'undefined') {
 }
 
 export function loadUserBooks() {
+  const deleted = new Set(getDeletedCoverIds());
   if (Array.isArray(serverCoversCache)) {
-    return serverCoversCache;
+    return deleted.size > 0 ? serverCoversCache.filter((c) => c && c.id && !deleted.has(c.id)) : serverCoversCache;
   }
   try {
     const raw = localStorage.getItem(STORAGE_USER_BOOKS_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    const list = Array.isArray(parsed) ? parsed : [];
+    return deleted.size > 0 ? list.filter((c) => c && c.id && !deleted.has(c.id)) : list;
   } catch {
     return [];
   }
 }
 
 export async function syncCommunityCovers() {
-  const localCovers = (() => {
+  const localDeleted = getDeletedCoverIds();
+  const deletedSet = new Set(localDeleted);
+
+  let localCovers = (() => {
     try {
       const raw = localStorage.getItem(STORAGE_USER_BOOKS_KEY);
       const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
+      const list = Array.isArray(parsed) ? parsed : [];
+      return list.filter((c) => c && c.id && !deletedSet.has(c.id));
     } catch {
       return [];
     }
@@ -85,17 +136,27 @@ export async function syncCommunityCovers() {
     if (res.ok) {
       const data = await res.json();
       const serverCovers = Array.isArray(data.covers) ? data.covers : [];
+      const serverDeleted = Array.isArray(data.deletedCoverIds) ? data.deletedCoverIds : [];
+
+      // Merge server tombstones into local deleted storage
+      serverDeleted.forEach((id) => markCoverDeleted(id));
+      const allDeleted = new Set([...getDeletedCoverIds(), ...serverDeleted]);
+
+      // Remove any tombstoned covers from local covers
+      localCovers = localCovers.filter((c) => c && c.id && !allDeleted.has(c.id));
 
       const coverMap = new Map();
-      // 1. Add server covers
+      // 1. Add valid server covers (skipping deleted)
       for (const sc of serverCovers) {
-        if (sc && sc.id) coverMap.set(sc.id, sc);
+        if (sc && sc.id && !allDeleted.has(sc.id)) {
+          coverMap.set(sc.id, sc);
+        }
       }
 
-      // 2. Merge local covers that server might not have yet
+      // 2. Merge local covers that server might not have yet (NEVER tombstoned ones!)
       const missingOnServer = [];
       for (const lc of localCovers) {
-        if (lc && lc.id) {
+        if (lc && lc.id && !allDeleted.has(lc.id)) {
           if (!coverMap.has(lc.id)) {
             coverMap.set(lc.id, lc);
             missingOnServer.push(lc);
@@ -106,7 +167,7 @@ export async function syncCommunityCovers() {
         }
       }
 
-      // Sync any missing local covers to the server in the background
+      // Sync genuinely new missing local covers to the server in background
       if (missingOnServer.length > 0) {
         fetch('/api/covers/sync', {
           method: 'POST',
@@ -115,7 +176,7 @@ export async function syncCommunityCovers() {
         }).catch(() => {});
       }
 
-      const merged = Array.from(coverMap.values());
+      const merged = Array.from(coverMap.values()).filter((c) => c && c.id && !allDeleted.has(c.id));
       merged.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
       const oldLength = Array.isArray(serverCoversCache) ? serverCoversCache.length : (localCovers.length || 0);
@@ -192,12 +253,35 @@ export async function publishCommunityCover(coverPayload) {
 }
 
 export async function deleteCommunityCover(coverId) {
+  if (!coverId) return;
+
+  // 1. Permanently record local tombstone
+  markCoverDeleted(coverId);
+
+  // 2. Remove immediately from local caches & favorites
+  const updated = loadUserBooks().filter((b) => b && b.id !== coverId);
+  serverCoversCache = updated;
+  saveUserBooks(updated);
+
+  try {
+    const favs = loadFavorites().filter((id) => id !== coverId);
+    saveFavorites(favs);
+  } catch {}
+
+  // 3. Dispatch deletion event across tabs & windows immediately
+  window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: updated }));
+  try {
+    coversBroadcastChannel?.postMessage({ type: 'PAGELLE_COVERS_DELETED', coverId, covers: updated });
+  } catch {}
+
+  // 4. Send deletion request to server with authenticated token
   const session = getCurrentSession();
+  const token = getAuthToken() || (session ? session.token : '');
   const res = await fetch('/api/covers', {
     method: 'DELETE',
     headers: {
       'Content-Type': 'application/json',
-      'x-auth-token': session ? session.token : ''
+      'x-auth-token': token
     },
     body: JSON.stringify({ coverId })
   });
@@ -205,13 +289,7 @@ export async function deleteCommunityCover(coverId) {
   if (!res.ok) {
     throw new Error(data.error || 'Could not delete cover.');
   }
-  const updated = loadUserBooks().filter((b) => b.id !== coverId);
-  serverCoversCache = updated;
-  saveUserBooks(updated);
-  window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: updated }));
-  try {
-    coversBroadcastChannel?.postMessage({ type: 'PAGELLE_COVERS_UPDATED', covers: updated });
-  } catch {}
+  return data;
 }
 
 export function saveUserBooks(userBooks) {
@@ -1639,6 +1717,7 @@ export function createDetailModalController({ onBooksChanged } = {}) {
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
           </a>
+          <button type="button" class="pin-delete-btn hidden" id="pinTopDeleteBtn" title="Delete Cover">Delete</button>
           <button type="button" class="pin-save-btn" id="pinSaveBtn">Save</button>
         </div>
       </div>
@@ -1764,6 +1843,7 @@ export function createDetailModalController({ onBooksChanged } = {}) {
   const downloadPngBtn = document.getElementById('pinDownloadPngBtn');
   const downloadOrigBtn = document.getElementById('pinDownloadOrigBtn');
   const deleteBtn = document.getElementById('detailDeleteBtn');
+  const topDeleteBtn = document.getElementById('pinTopDeleteBtn');
 
   const genrePillEl = document.getElementById('pinGenrePill');
   const genreEl = document.getElementById('detailGenre');
@@ -1975,13 +2055,16 @@ export function createDetailModalController({ onBooksChanged } = {}) {
     renderComments(book.id);
 
     const session = getCurrentSession();
-    const canDelete =
-      book.isCommunity &&
-      session &&
-      (session.role === 'admin' ||
-        !book.submittedByEmail ||
-        book.submittedByEmail.toLowerCase() === session.email.toLowerCase());
-    deleteBtn.classList.toggle('hidden', !canDelete);
+    const isOwner = session && (
+      (book.submittedByEmail && session.email && book.submittedByEmail.toLowerCase() === session.email.toLowerCase()) ||
+      (book.submittedById && session.userId && String(book.submittedById) === String(session.userId)) ||
+      (book.submittedById && session.id && String(book.submittedById) === String(session.id)) ||
+      (book.submittedByName && session.name && book.submittedByName.toLowerCase() === session.name.toLowerCase()) ||
+      (book.author && session.name && book.author.toLowerCase() === session.name.toLowerCase())
+    );
+    const canDelete = Boolean(book.isCommunity && session && (session.role === 'admin' || isOwner));
+    if (deleteBtn) deleteBtn.classList.toggle('hidden', !canDelete);
+    if (topDeleteBtn) topDeleteBtn.classList.toggle('hidden', !canDelete);
 
     modalEl.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -2128,10 +2211,13 @@ export function createDetailModalController({ onBooksChanged } = {}) {
     showToast('Comment posted');
   });
 
-  deleteBtn.addEventListener('click', async () => {
+  const handleDeleteCover = async () => {
     if (!inspectedId) return;
     const target = findBookById(inspectedId);
     if (!target || !target.isCommunity) return;
+
+    const confirmed = window.confirm(`Are you sure you want to delete "${target.title}"? This cannot be undone.`);
+    if (!confirmed) return;
 
     try {
       await deleteCommunityCover(inspectedId);
@@ -2140,13 +2226,13 @@ export function createDetailModalController({ onBooksChanged } = {}) {
       return;
     }
 
-    const updatedFavs = loadFavorites().filter((id) => id !== inspectedId);
-    saveFavorites(updatedFavs);
-
     close();
     if (onBooksChanged) onBooksChanged();
-    showToast(`Removed "${target.title}" from the gallery.`);
-  });
+    showToast(`Deleted "${target.title}" successfully.`);
+  };
+
+  if (deleteBtn) deleteBtn.addEventListener('click', handleDeleteCover);
+  if (topDeleteBtn) topDeleteBtn.addEventListener('click', handleDeleteCover);
 
   return { open, close };
 }

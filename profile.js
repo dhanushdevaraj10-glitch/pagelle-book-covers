@@ -24,7 +24,8 @@ import {
   getFollowingForUser,
   getUserProfileByIdOrEmail,
   fetchUserProfileFromServer,
-  getMemberPosts
+  getMemberPosts,
+  getDeletedCoverIds
 } from './shared.js?v=2.2.0';
 
 function escapeHtml(str) {
@@ -501,12 +502,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 8. Render Book Covers Gallery for active user
   function renderProfileData() {
-    let memberCovers = getMemberPosts(activeUser);
+    const deletedIds = new Set(getDeletedCoverIds());
+    let memberCovers = getMemberPosts(activeUser).filter((c) => c && c.id && !deletedIds.has(c.id));
+    if (serverProfileData && Array.isArray(serverProfileData.covers)) {
+      serverProfileData.covers = serverProfileData.covers.filter((c) => c && c.id && !deletedIds.has(c.id));
+    }
     if (memberCovers.length === 0 && serverProfileData && Array.isArray(serverProfileData.covers) && serverProfileData.covers.length > 0) {
-      memberCovers = serverProfileData.covers;
+      memberCovers = serverProfileData.covers.filter((c) => c && c.id && !deletedIds.has(c.id));
     }
 
-    const coversCount = Math.max(memberCovers.length, typeof activeUser.coversCount === 'number' ? activeUser.coversCount : 0);
+    const coversCount = memberCovers.length;
     postsCountEl.textContent = String(coversCount);
     tabCreatedCountEl.textContent = String(coversCount);
 
