@@ -189,6 +189,16 @@ async function init() {
   });
 
   bindFooterContact();
+
+  window.addEventListener('pagelle:covers:updated', () => {
+    renderCarousel();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      syncCommunityCovers().then(() => renderCarousel());
+    }
+  });
 }
 
 init();

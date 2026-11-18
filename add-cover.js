@@ -7,6 +7,7 @@ import {
   bindFooterContact,
   initAuthHeader,
   createDetailModalController,
+  getCurrentSession,
   showToast
 } from './shared.js';
 
@@ -195,18 +196,24 @@ async function handleSubmit(e) {
     return;
   }
 
+  const session = getCurrentSession();
   const newBook = {
     id: `user-${Date.now()}`,
     title,
     author,
     genre: bookGenreInputEl.value || 'Fiction',
     year: bookYearInputEl.value.trim() || String(new Date().getFullYear()),
-    designer: bookDesignerInputEl.value.trim() || 'Community Creator',
+    designer: bookDesignerInputEl.value.trim() || (session && session.name ? session.name : 'Community Creator'),
     desc:
       bookDescInputEl.value.trim() ||
       `Community-submitted book cover edition for "${title}" by ${author}.`,
     image: getPreviewImageSrc(),
-    isCommunity: true
+    isCommunity: true,
+    submittedById: session ? (session.userId || session.id || '') : '',
+    submittedByName: session && session.name ? session.name : 'Community Creator',
+    submittedByEmail: session && session.email ? session.email : '',
+    submittedByUsername: session && session.username ? session.username : '',
+    createdAt: new Date().toISOString()
   };
 
   try {
@@ -234,6 +241,10 @@ async function init() {
   await syncCommunityCovers();
   renderMySubmissions();
   bindFooterContact();
+
+  window.addEventListener('pagelle:covers:updated', () => {
+    renderMySubmissions();
+  });
 
   sourceTabEls.forEach((tab) => {
     tab.addEventListener('click', () => switchSourceMode(tab.dataset.sourceMode));

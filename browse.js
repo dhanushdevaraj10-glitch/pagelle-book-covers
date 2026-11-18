@@ -142,6 +142,20 @@ async function init() {
   });
 
   bindFooterContact();
+
+  window.addEventListener('pagelle:covers:updated', () => {
+    renderGenreTabs();
+    renderGallery();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      syncCommunityCovers().then(() => {
+        renderGenreTabs();
+        renderGallery();
+      });
+    }
+  });
 }
 
 init();

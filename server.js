@@ -16,6 +16,37 @@ const ADMIN_EMAIL = 'dhanushdevaraj10@gmail.com';
 const OWNER_EMAIL = ADMIN_EMAIL;
 const ADMIN_INITIAL_PASSWORD = process.env.ADMIN_PASSWORD || 'Dhanush@10';
 const MASTER_ADMIN_TOKEN = 'pagelle_admin_master_session_token_dhanush_2026';
+const TOKEN_SECRET = process.env.TOKEN_SECRET || 'pagelle_session_secret_hmac_key_2026';
+
+function generateSignedToken(user) {
+  const payload = {
+    userId: user.id,
+    email: user.email,
+    name: user.name,
+    username: user.username || (user.email ? user.email.split('@')[0] : 'user'),
+    role: user.role || 'user',
+    isOwner: !!user.isOwner,
+    createdAt: Date.now()
+  };
+  const b64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto.createHmac('sha256', TOKEN_SECRET).update(b64).digest('base64url');
+  return `pgt_${b64}.${sig}`;
+}
+
+function verifySignedToken(token) {
+  if (!token || typeof token !== 'string' || !token.startsWith('pgt_')) return null;
+  const parts = token.slice(4).split('.');
+  if (parts.length !== 2) return null;
+  const [b64, sig] = parts;
+  const expectedSig = crypto.createHmac('sha256', TOKEN_SECRET).update(b64).digest('base64url');
+  if (sig !== expectedSig) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(b64, 'base64url').toString('utf8'));
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -169,9 +200,19 @@ function ensureStore() {
 
 function saveStore(store) {
   if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    } catch {}
   }
-  fs.writeFileSync(STORE_PATH, JSON.stringify(store, null, 2), 'utf8');
+  try {
+    fs.writeFileSync(STORE_PATH, JSON.stringify(store, null, 2), 'utf8');
+  } catch {}
+  try {
+    const rootStorePath = path.join(ROOT, 'data', 'store.json');
+    if (rootStorePath !== STORE_PATH && fs.existsSync(path.dirname(rootStorePath))) {
+      fs.writeFileSync(rootStorePath, JSON.stringify(store, null, 2), 'utf8');
+    }
+  } catch {}
 }
 
 function sendJson(res, status, data) {
@@ -313,6 +354,30 @@ function getAuthenticatedSession(req, store) {
     }
   }
 
+  // Check signed token (persists session seamlessly across ephemeral serverless instances)
+  const signedPayload = verifySignedToken(token);
+  if (signedPayload) {
+    let user = store.users.find(
+      (u) => u.id === signedPayload.userId || (u.email && u.email.toLowerCase() === (signedPayload.email || '').toLowerCase())
+    );
+    if (!user) {
+      user = {
+        id: signedPayload.userId,
+        name: signedPayload.name || 'Community Member',
+        email: signedPayload.email,
+        username: signedPayload.username,
+        role: signedPayload.role || 'user',
+        isOwner: !!signedPayload.isOwner,
+        active: true,
+        createdAt: new Date().toISOString()
+      };
+      store.users.push(user);
+    }
+    if (user.active !== false) {
+      return { token, user };
+    }
+  }
+
   if (token.length < 20) return null;
   const session = store.sessions[token];
   if (!session) return null;
@@ -413,7 +478,7 @@ async function handleApi(req, res, urlPath) {
     user.loginCount = (user.loginCount || 0) + 1;
     user.lastLoginAt = now;
 
-    const token = crypto.randomBytes(24).toString('hex');
+    const token = generateSignedToken(user);
     store.sessions[token] = { userId: user.id, createdAt: now };
 
     recordLoginEvent(store, req, { user, action: 'Sign In', status: 'Success' });
@@ -529,7 +594,7 @@ async function handleApi(req, res, urlPath) {
     };
 
     store.users.push(newUser);
-    const token = crypto.randomBytes(24).toString('hex');
+    const token = generateSignedToken(newUser);
     store.sessions[token] = { userId: newUser.id, createdAt: now };
 
     recordLoginEvent(store, req, { user: newUser, action: 'Sign Up', status: 'Success' });
@@ -1096,7 +1161,43 @@ async function handleApi(req, res, urlPath) {
   }
 
   if (urlPath === '/api/covers' && req.method === 'GET') {
-    sendJson(res, 200, { covers: store.communityCovers });
+    sendJson(res, 200, { covers: store.communityCovers || [] });
+    return;
+  }
+
+  if (urlPath === '/api/covers/sync' && req.method === 'POST') {
+    const body = await readJsonBody(req);
+    const incoming = Array.isArray(body.covers) ? body.covers : [];
+    let added = 0;
+    if (!Array.isArray(store.communityCovers)) store.communityCovers = [];
+    for (const c of incoming) {
+      if (!c || !c.title || !c.image) continue;
+      const cid = c.id && /^user-[a-zA-Z0-9_-]+$/.test(c.id) ? c.id : `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const existingIdx = store.communityCovers.findIndex((x) => x.id === cid);
+      if (existingIdx === -1) {
+        store.communityCovers.unshift({
+          id: cid,
+          title: sanitizeText(c.title, 80),
+          author: sanitizeText(c.author, 60),
+          genre: sanitizeText(c.genre || 'Fiction', 30),
+          year: sanitizeText(c.year || new Date().getFullYear(), 10),
+          designer: sanitizeText(c.designer || c.submittedByName || 'Community Creator', 60),
+          desc: sanitizeText(c.desc || '', 500),
+          image: String(c.image || '').trim(),
+          isCommunity: true,
+          submittedById: c.submittedById || '',
+          submittedByName: c.submittedByName || 'Community Member',
+          submittedByEmail: c.submittedByEmail || '',
+          submittedByUsername: c.submittedByUsername || '',
+          createdAt: c.createdAt || new Date().toISOString()
+        });
+        added++;
+      }
+    }
+    if (added > 0) {
+      saveStore(store);
+    }
+    sendJson(res, 200, { ok: true, count: store.communityCovers.length, covers: store.communityCovers });
     return;
   }
 
@@ -1126,10 +1227,14 @@ async function handleApi(req, res, urlPath) {
       desc: sanitizeText(body.desc || '', 500),
       image: cleanImage,
       isCommunity: true,
-      submittedByName: auth.user.name,
-      submittedByEmail: auth.user.email,
+      submittedById: auth.user.id || '',
+      submittedByName: auth.user.name || '',
+      submittedByEmail: auth.user.email || '',
+      submittedByUsername: auth.user.username || '',
       createdAt: new Date().toISOString()
     };
+    if (!Array.isArray(store.communityCovers)) store.communityCovers = [];
+    store.communityCovers = store.communityCovers.filter((c) => c.id !== cover.id);
     store.communityCovers.unshift(cover);
     saveStore(store);
     sendJson(res, 201, { cover });

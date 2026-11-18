@@ -506,7 +506,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       memberCovers = serverProfileData.covers;
     }
 
-    const coversCount = typeof activeUser.coversCount === 'number' ? activeUser.coversCount : memberCovers.length;
+    const coversCount = Math.max(memberCovers.length, typeof activeUser.coversCount === 'number' ? activeUser.coversCount : 0);
     postsCountEl.textContent = String(coversCount);
     tabCreatedCountEl.textContent = String(coversCount);
 
@@ -976,6 +976,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('pagelle:members:synced', () => {
     if (followListModalOverlay && !followListModalOverlay.classList.contains('hidden')) {
       renderFollowList();
+    }
+  });
+
+  window.addEventListener('pagelle:covers:updated', () => {
+    renderProfileData();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      syncCommunityCovers().then(() => renderProfileData());
     }
   });
 

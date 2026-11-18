@@ -4,7 +4,8 @@ import {
   createBookCardElement,
   bindFooterContact,
   initAuthHeader,
-  createDetailModalController
+  createDetailModalController,
+  syncCommunityCovers
 } from './shared.js';
 
 const params = new URLSearchParams(window.location.search);
@@ -111,11 +112,19 @@ function renderCollectionSections() {
   });
 }
 
-function init() {
+async function init() {
   initAuthHeader();
   renderOverview();
   renderCollectionSections();
   bindFooterContact();
+  await syncCommunityCovers();
+  renderOverview();
+  renderCollectionSections();
+
+  window.addEventListener('pagelle:covers:updated', () => {
+    renderOverview();
+    renderCollectionSections();
+  });
 
   if (selectedId) {
     const target = document.getElementById(`section-${selectedId}`);

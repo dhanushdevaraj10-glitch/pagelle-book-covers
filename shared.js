@@ -7,6 +7,55 @@ let toastTimer = null;
 
 let serverCoversCache = null;
 
+// Real-time cross-tab broadcast channel for book covers
+const coversBroadcastChannel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined'
+  ? new BroadcastChannel('pagelle_covers_channel')
+  : null;
+
+if (coversBroadcastChannel) {
+  coversBroadcastChannel.onmessage = (event) => {
+    if (event && event.data && event.data.type === 'PAGELLE_COVERS_UPDATED') {
+      const covers = Array.isArray(event.data.covers) ? event.data.covers : [];
+      if (covers.length > 0) {
+        serverCoversCache = covers;
+        try {
+          localStorage.setItem(STORAGE_USER_BOOKS_KEY, JSON.stringify(covers));
+        } catch {}
+        window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: covers }));
+      }
+    }
+  };
+}
+
+if (typeof window !== 'undefined') {
+  // Listen for storage changes across browser tabs
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_USER_BOOKS_KEY && e.newValue) {
+      try {
+        const parsed = JSON.parse(e.newValue);
+        if (Array.isArray(parsed)) {
+          serverCoversCache = parsed;
+          window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: parsed }));
+        }
+      } catch {}
+    }
+  });
+
+  // Re-sync freshest covers from server whenever tab regains user focus
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      syncCommunityCovers().catch(() => {});
+    }
+  });
+
+  // Periodic background sync every 15s to keep covers updated across all users live
+  setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      syncCommunityCovers().catch(() => {});
+    }
+  }, 15000);
+}
+
 export function loadUserBooks() {
   if (Array.isArray(serverCoversCache)) {
     return serverCoversCache;
@@ -21,40 +70,125 @@ export function loadUserBooks() {
 }
 
 export async function syncCommunityCovers() {
+  const localCovers = (() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_USER_BOOKS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
+
   try {
     const res = await fetch('/api/covers');
-    if (!res.ok) return loadUserBooks();
-    const data = await res.json();
-    if (Array.isArray(data.covers)) {
-      serverCoversCache = data.covers;
-      saveUserBooks(data.covers);
-      return data.covers;
+    if (res.ok) {
+      const data = await res.json();
+      const serverCovers = Array.isArray(data.covers) ? data.covers : [];
+
+      const coverMap = new Map();
+      // 1. Add server covers
+      for (const sc of serverCovers) {
+        if (sc && sc.id) coverMap.set(sc.id, sc);
+      }
+
+      // 2. Merge local covers that server might not have yet
+      const missingOnServer = [];
+      for (const lc of localCovers) {
+        if (lc && lc.id) {
+          if (!coverMap.has(lc.id)) {
+            coverMap.set(lc.id, lc);
+            missingOnServer.push(lc);
+          } else {
+            const existing = coverMap.get(lc.id);
+            coverMap.set(lc.id, { ...existing, ...lc });
+          }
+        }
+      }
+
+      // Sync any missing local covers to the server in the background
+      if (missingOnServer.length > 0) {
+        fetch('/api/covers/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ covers: missingOnServer })
+        }).catch(() => {});
+      }
+
+      const merged = Array.from(coverMap.values());
+      merged.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+      const oldLength = Array.isArray(serverCoversCache) ? serverCoversCache.length : (localCovers.length || 0);
+      const changed = oldLength !== merged.length || JSON.stringify(serverCoversCache?.map(c => c.id)) !== JSON.stringify(merged.map(c => c.id));
+
+      serverCoversCache = merged;
+      saveUserBooks(merged);
+
+      if (changed) {
+        window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: merged }));
+        try {
+          coversBroadcastChannel?.postMessage({ type: 'PAGELLE_COVERS_UPDATED', covers: merged });
+        } catch {}
+      }
+
+      return merged;
     }
   } catch {
-    // Fall back to cached localStorage covers
+    // Network fallback
   }
+
   return loadUserBooks();
 }
 
 export async function publishCommunityCover(coverPayload) {
   const session = getCurrentSession();
-  const res = await fetch('/api/covers', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-auth-token': session ? session.token : ''
-    },
-    body: JSON.stringify(coverPayload)
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Could not publish cover.');
-  }
+  const token = getAuthToken();
+
+  const prepared = {
+    ...coverPayload,
+    isCommunity: true,
+    submittedById: coverPayload.submittedById || (session ? (session.userId || session.id || '') : ''),
+    submittedByName: coverPayload.submittedByName || (session && session.name ? session.name : 'Community Creator'),
+    submittedByEmail: coverPayload.submittedByEmail || (session && session.email ? session.email : ''),
+    submittedByUsername: coverPayload.submittedByUsername || (session && session.username ? session.username : ''),
+    createdAt: coverPayload.createdAt || new Date().toISOString()
+  };
+
+  // Immediate optimistic local update so the cover is instantly visible on this client
   const current = loadUserBooks();
-  const updated = [data.cover, ...current.filter((c) => c.id !== data.cover.id)];
-  serverCoversCache = updated;
-  saveUserBooks(updated);
-  return data.cover;
+  const optimistic = [prepared, ...current.filter((c) => c.id !== prepared.id)];
+  serverCoversCache = optimistic;
+  saveUserBooks(optimistic);
+  window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: optimistic }));
+  try {
+    coversBroadcastChannel?.postMessage({ type: 'PAGELLE_COVERS_UPDATED', covers: optimistic });
+  } catch {}
+
+  try {
+    const res = await fetch('/api/covers', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': token || ''
+      },
+      body: JSON.stringify(prepared)
+    });
+    const data = await res.json();
+    if (res.ok && data.cover) {
+      const finalUpdated = [data.cover, ...current.filter((c) => c.id !== data.cover.id && c.id !== prepared.id)];
+      serverCoversCache = finalUpdated;
+      saveUserBooks(finalUpdated);
+      window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: finalUpdated }));
+      try {
+        coversBroadcastChannel?.postMessage({ type: 'PAGELLE_COVERS_UPDATED', covers: finalUpdated });
+      } catch {}
+      return data.cover;
+    }
+  } catch (err) {
+    // Return optimistic cover if network was unreachable
+  }
+
+  return prepared;
 }
 
 export async function deleteCommunityCover(coverId) {
@@ -74,6 +208,10 @@ export async function deleteCommunityCover(coverId) {
   const updated = loadUserBooks().filter((b) => b.id !== coverId);
   serverCoversCache = updated;
   saveUserBooks(updated);
+  window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: updated }));
+  try {
+    coversBroadcastChannel?.postMessage({ type: 'PAGELLE_COVERS_UPDATED', covers: updated });
+  } catch {}
 }
 
 export function saveUserBooks(userBooks) {
@@ -81,7 +219,11 @@ export function saveUserBooks(userBooks) {
     localStorage.setItem(STORAGE_USER_BOOKS_KEY, JSON.stringify(userBooks));
     return true;
   } catch {
-    showToast('Storage is full. Try uploading a smaller cover image.');
+    try {
+      const compact = userBooks.slice(0, 15);
+      localStorage.setItem(STORAGE_USER_BOOKS_KEY, JSON.stringify(compact));
+      return true;
+    } catch {}
     return false;
   }
 }
@@ -2956,19 +3098,28 @@ export async function fetchUserProfileFromServer(identifier) {
 export function getMemberPosts(targetUser) {
   if (!targetUser) return [];
   const allCommunity = loadUserBooks();
-  const allBooks = getAllBooks();
-  const email = ((targetUser && targetUser.email) || '').toLowerCase();
-  const id = String(targetUser.id || targetUser.userId || '').toLowerCase();
+  const email = ((targetUser && targetUser.email) || '').toLowerCase().trim();
+  const id = String(targetUser.id || targetUser.userId || '').toLowerCase().trim();
+  const name = String(targetUser.name || '').toLowerCase().trim();
+  const username = String(targetUser.username || '').toLowerCase().trim();
+  const isOwner = email === OWNER_EMAIL.toLowerCase() || id === 'usr-admin-owner' || name === 'dhanush';
 
-  // If this member submitted community covers directly:
-  const directSubmitted = allCommunity.filter(
-    (c) => (c.submittedByEmail && c.submittedByEmail.toLowerCase() === email) ||
-           (c.submittedById && c.submittedById.toLowerCase() === id)
-  );
-  if (directSubmitted.length > 0) {
-    return directSubmitted;
-  }
+  // Find all covers submitted by this community creator
+  const directSubmitted = allCommunity.filter((c) => {
+    if (!c) return false;
+    const cEmail = String(c.submittedByEmail || '').toLowerCase().trim();
+    const cId = String(c.submittedById || '').toLowerCase().trim();
+    const cName = String(c.submittedByName || c.designer || '').toLowerCase().trim();
+    const cUser = String(c.submittedByUsername || '').toLowerCase().trim();
 
-  return [];
+    if (email && cEmail && cEmail === email) return true;
+    if (id && cId && cId === id) return true;
+    if (username && cUser && cUser === username) return true;
+    if (isOwner && (cEmail === OWNER_EMAIL.toLowerCase() || cName === 'dhanush' || cId === 'usr-admin-owner')) return true;
+    if (name && cName && cName === name && (email || id)) return true;
+    return false;
+  });
+
+  return directSubmitted;
 }
 
