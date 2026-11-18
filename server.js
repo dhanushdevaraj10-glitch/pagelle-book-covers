@@ -907,12 +907,13 @@ async function handleApi(req, res, urlPath) {
   }
 
   if (urlPath === '/api/network/profile' && req.method === 'GET') {
-    const targetId = parsedUrl.searchParams.get('id') || (req.query && req.query.id) || '';
+    const targetUserParam = parsedUrl.searchParams.get('user') || (req.query && req.query.user) || '';
+    const targetId = parsedUrl.searchParams.get('id') || (req.query && req.query.id) || targetUserParam;
     const targetEmail = (parsedUrl.searchParams.get('email') || (req.query && req.query.email) || '').toLowerCase().trim();
     const allFollows = Array.isArray(store.follows) ? store.follows : [];
 
     const normalizeEmail = (e) => String(e || '').toLowerCase().trim().replace('@gamil.com', '@gmail.com');
-    const rawTarget = String(targetId || targetEmail || '').trim().toLowerCase().replace(/^@/, '');
+    const rawTarget = String(targetId || targetEmail || targetUserParam || '').trim().toLowerCase().replace(/^@/, '');
     const cleanEmail = normalizeEmail(targetEmail || (rawTarget.includes('@') ? rawTarget : ''));
 
     let requester = getAuthenticatedSession(req, store)?.user;
@@ -991,10 +992,20 @@ async function handleApi(req, res, urlPath) {
       ((cleanTargetId && (f.followingId === cleanTargetId || f.followedId === cleanTargetId)) || (cleanTargetEmail && normalizeEmail(f.followedEmail) === cleanTargetEmail))
     ) : false;
 
-    const covers = (store.communityCovers || []).filter(c =>
-      (cleanTargetEmail && c.submittedByEmail && normalizeEmail(c.submittedByEmail) === cleanTargetEmail) ||
-      (cleanTargetId && c.submittedById && c.submittedById === cleanTargetId)
-    );
+    const covers = (store.communityCovers || []).filter(c => {
+      if (!c) return false;
+      const cEmail = normalizeEmail(c.submittedByEmail);
+      const cId = String(c.submittedById || '').toLowerCase().trim();
+      const cUser = String(c.submittedByUsername || '').toLowerCase().trim().replace(/^@/, '');
+      const cName = String(c.submittedByName || c.designer || '').toLowerCase().trim();
+      const isOwner = cleanTargetEmail === ADMIN_EMAIL.toLowerCase() || (cleanTargetId && cleanTargetId.toLowerCase() === 'usr-admin-owner') || rawTarget === 'dhanush';
+
+      if (cleanTargetEmail && cEmail && cEmail === cleanTargetEmail) return true;
+      if (cleanTargetId && cId && cId === cleanTargetId.toLowerCase()) return true;
+      if (cleanTargetUsername && cUser && cUser === cleanTargetUsername) return true;
+      if (isOwner && (cEmail === ADMIN_EMAIL.toLowerCase() || cName === 'dhanush' || cId === 'usr-admin-owner')) return true;
+      return false;
+    });
 
     sendJson(res, 200, {
       ok: true,
