@@ -373,18 +373,25 @@ async function init() {
 
   adminWelcomeTextEl.textContent = `WELCOME, ${(session.name || 'ADMIN').toUpperCase()}`;
 
-  adminLogoutBtn.addEventListener('click', async () => {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: { 'x-auth-token': session.token || '' }
-      });
-    } catch {
-      // Ignore
-    }
-    localStorage.removeItem(STORAGE_SESSION_KEY);
-    window.location.replace('login.html');
-  });
+  if (adminLogoutBtn) {
+    adminLogoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      try {
+        const token = session && session.token ? session.token : '';
+        if (token) {
+          fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: { 'x-auth-token': token },
+            keepalive: true
+          }).catch(() => {});
+        }
+      } catch {}
+      try {
+        localStorage.removeItem(STORAGE_SESSION_KEY);
+      } catch {}
+      window.location.replace('login.html');
+    });
+  }
 
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', () => switchTab(btn.dataset.adminTab));

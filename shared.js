@@ -1051,19 +1051,43 @@ export function initAuthHeader() {
     });
   }
 
-  // Section 4: Log Out
+  // Section 4: Log Out (Instantaneous redirect with non-blocking server cleanup)
   const logoutBtn = menu.querySelector('#dropdownLogoutBtn');
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
+    // Prefetch login page on mouseover or touchstart so redirect is instant
+    const prefetchLogin = () => {
       try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'x-auth-token': session.token || '' }
-        });
-      } catch {
-        // Ignore network logout error
-      }
-      localStorage.removeItem(STORAGE_SESSION_KEY);
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = 'login.html';
+        document.head.appendChild(link);
+      } catch {}
+    };
+    logoutBtn.addEventListener('mouseenter', prefetchLogin, { once: true, passive: true });
+    logoutBtn.addEventListener('touchstart', prefetchLogin, { once: true, passive: true });
+
+    logoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Fire non-blocking logout notification to server (keepalive ensures delivery during page unload)
+      try {
+        const token = session && session.token ? session.token : '';
+        if (token) {
+          fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: { 'x-auth-token': token },
+            keepalive: true
+          }).catch(() => {});
+        }
+      } catch {}
+
+      // Instantly clear local session state with zero delay
+      try {
+        localStorage.removeItem(STORAGE_SESSION_KEY);
+      } catch {}
+
+      // Immediately navigate to the sign-in page
       window.location.replace('login.html');
     });
   }
