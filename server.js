@@ -580,8 +580,16 @@ async function handleApi(req, res, urlPath) {
     }
 
     const now = new Date().toISOString();
-    const isOwner = email === ADMIN_EMAIL;
-    const cleanUsername = sanitizeText(body.username || name || email.split('@')[0], 40).toLowerCase().replace(/[^a-z0-9_]/g, '') || email.split('@')[0];
+    const isOwner = email === ADMIN_EMAIL.toLowerCase();
+    let baseUsername = sanitizeText(body.username || name || email.split('@')[0], 40).toLowerCase().replace(/[^a-z0-9_]/g, '') || email.split('@')[0];
+    if (!isOwner && baseUsername === 'dhanush') {
+      baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '') || 'member';
+    }
+    let cleanUsername = baseUsername;
+    let counter = 1;
+    while (store.users.some(u => u.username && u.username.toLowerCase() === cleanUsername && u.email.toLowerCase() !== email)) {
+      cleanUsername = `${baseUsername}${counter++}`;
+    }
     const newUser = {
       id: `usr-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
       name,
@@ -944,7 +952,7 @@ async function handleApi(req, res, urlPath) {
              (cleanEmail && uemail === cleanEmail);
     });
 
-    if (!targetUser && (cleanEmail === ADMIN_EMAIL.toLowerCase() || rawTarget === 'usr-admin-owner' || rawTarget === 'dhanush')) {
+    if (!targetUser && (cleanEmail === ADMIN_EMAIL.toLowerCase() || rawTarget === 'usr-admin-owner')) {
       targetUser = store.users.find(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
     }
 
@@ -1011,13 +1019,12 @@ async function handleApi(req, res, urlPath) {
       const cEmail = normalizeEmail(c.submittedByEmail);
       const cId = String(c.submittedById || '').toLowerCase().trim();
       const cUser = String(c.submittedByUsername || '').toLowerCase().trim().replace(/^@/, '');
-      const cName = String(c.submittedByName || c.designer || '').toLowerCase().trim();
-      const isOwner = cleanTargetEmail === ADMIN_EMAIL.toLowerCase() || (cleanTargetId && cleanTargetId.toLowerCase() === 'usr-admin-owner') || rawTarget === 'dhanush';
+      const isOwner = cleanTargetEmail === ADMIN_EMAIL.toLowerCase() || (cleanTargetId && cleanTargetId.toLowerCase() === 'usr-admin-owner');
 
       if (cleanTargetEmail && cEmail && cEmail === cleanTargetEmail) return true;
       if (cleanTargetId && cId && cId === cleanTargetId.toLowerCase()) return true;
-      if (cleanTargetUsername && cUser && cUser === cleanTargetUsername) return true;
-      if (isOwner && (cEmail === ADMIN_EMAIL.toLowerCase() || cName === 'dhanush' || cId === 'usr-admin-owner')) return true;
+      if (cleanTargetUsername && cUser && cUser === cleanTargetUsername && !['user', 'member', 'creator', 'guest'].includes(cleanTargetUsername)) return true;
+      if (isOwner && (cEmail === ADMIN_EMAIL.toLowerCase() || cId === 'usr-admin-owner')) return true;
       return false;
     });
 

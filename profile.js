@@ -26,7 +26,7 @@ import {
   fetchUserProfileFromServer,
   getMemberPosts,
   getDeletedCoverIds
-} from './shared.js?v=2.2.0';
+} from './shared.js?v=2.2.1';
 
 function escapeHtml(str) {
   return String(str || '')

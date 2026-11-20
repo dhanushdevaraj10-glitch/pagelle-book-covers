@@ -3215,28 +3215,30 @@ export async function fetchUserProfileFromServer(identifier) {
 export function getMemberPosts(targetUser) {
   if (!targetUser) return [];
   const allCommunity = loadUserBooks();
-  const email = ((targetUser && targetUser.email) || '').toLowerCase().trim();
+  const email = ((targetUser && targetUser.email) || '').toLowerCase().trim().replace('@gamil.com', '@gmail.com');
   const id = String(targetUser.id || targetUser.userId || '').toLowerCase().trim();
-  const name = String(targetUser.name || '').toLowerCase().trim();
-  const username = String(targetUser.username || '').toLowerCase().trim();
-  const isOwner = email === OWNER_EMAIL.toLowerCase() || id === 'usr-admin-owner' || name === 'dhanush';
+  const username = String(targetUser.username || '').toLowerCase().trim().replace(/^@/, '');
+  const isOwner = email === OWNER_EMAIL.toLowerCase() || id === 'usr-admin-owner';
 
-  // Find all covers submitted by this community creator
+  // Find all covers submitted by this particular user
   const directSubmitted = allCommunity.filter((c) => {
     if (!c) return false;
-    const cEmail = String(c.submittedByEmail || '').toLowerCase().trim();
+    const cEmail = String(c.submittedByEmail || '').toLowerCase().trim().replace('@gamil.com', '@gmail.com');
     const cId = String(c.submittedById || '').toLowerCase().trim();
-    const cName = String(c.submittedByName || c.designer || '').toLowerCase().trim();
-    const cUser = String(c.submittedByUsername || '').toLowerCase().trim();
+    const cUser = String(c.submittedByUsername || '').toLowerCase().trim().replace(/^@/, '');
 
-    const cAuthor = String(c.author || '').toLowerCase().trim();
-    const cDesigner = String(c.designer || '').toLowerCase().trim();
-
+    // 1. Precise match on unique email
     if (email && cEmail && cEmail === email) return true;
+
+    // 2. Precise match on unique user ID
     if (id && cId && cId === id) return true;
-    if (username && cUser && cUser === username) return true;
-    if (isOwner && (cEmail === OWNER_EMAIL.toLowerCase() || cName === 'dhanush' || cId === 'usr-admin-owner')) return true;
-    if (name && (cName === name || cAuthor === name || cDesigner === name)) return true;
+
+    // 3. Precise match on unique username (avoid generic terms)
+    if (username && cUser && cUser === username && !['user', 'member', 'creator', 'guest'].includes(username)) return true;
+
+    // 4. Site owner/admin check (strictly email or admin id, NEVER generic name)
+    if (isOwner && (cEmail === OWNER_EMAIL.toLowerCase() || cId === 'usr-admin-owner')) return true;
+
     return false;
   });
 
