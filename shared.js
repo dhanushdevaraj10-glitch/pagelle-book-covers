@@ -93,12 +93,18 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // Periodic background sync every 15s to keep covers updated across all users live
+  window.addEventListener('focus', () => {
+    if (document.visibilityState === 'visible') {
+      syncCommunityCovers().catch(() => {});
+    }
+  });
+
+  // Fast real-time background sync every 2 seconds to keep covers updated across all users live
   setInterval(() => {
     if (document.visibilityState === 'visible') {
       syncCommunityCovers().catch(() => {});
     }
-  }, 15000);
+  }, 2000);
 }
 
 export function loadUserBooks() {
@@ -116,89 +122,110 @@ export function loadUserBooks() {
   }
 }
 
-export async function syncCommunityCovers() {
-  const localDeleted = getDeletedCoverIds();
-  const deletedSet = new Set(localDeleted);
+let inFlightSyncPromise = null;
 
-  let localCovers = (() => {
+export async function syncCommunityCovers() {
+  if (inFlightSyncPromise) {
+    return inFlightSyncPromise;
+  }
+
+  inFlightSyncPromise = (async () => {
+    const localDeleted = getDeletedCoverIds();
+    const deletedSet = new Set(localDeleted);
+
+    let localCovers = (() => {
+      try {
+        const raw = localStorage.getItem(STORAGE_USER_BOOKS_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        const list = Array.isArray(parsed) ? parsed : [];
+        return list.filter((c) => c && c.id && !deletedSet.has(c.id));
+      } catch {
+        return [];
+      }
+    })();
+
     try {
-      const raw = localStorage.getItem(STORAGE_USER_BOOKS_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      const list = Array.isArray(parsed) ? parsed : [];
-      return list.filter((c) => c && c.id && !deletedSet.has(c.id));
+      const res = await fetch(`/api/covers?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const serverCovers = Array.isArray(data.covers) ? data.covers : [];
+        const serverDeleted = Array.isArray(data.deletedCoverIds) ? data.deletedCoverIds : [];
+
+        // Merge server tombstones into local deleted storage
+        serverDeleted.forEach((id) => markCoverDeleted(id));
+        const allDeleted = new Set([...getDeletedCoverIds(), ...serverDeleted]);
+
+        // Remove any tombstoned covers from local covers
+        localCovers = localCovers.filter((c) => c && c.id && !allDeleted.has(c.id));
+
+        const coverMap = new Map();
+        // 1. Add valid server covers (skipping deleted)
+        for (const sc of serverCovers) {
+          if (sc && sc.id && !allDeleted.has(sc.id)) {
+            coverMap.set(sc.id, sc);
+          }
+        }
+
+        // 2. Merge local covers that server might not have yet (NEVER tombstoned ones!)
+        const missingOnServer = [];
+        for (const lc of localCovers) {
+          if (lc && lc.id && !allDeleted.has(lc.id)) {
+            if (!coverMap.has(lc.id)) {
+              coverMap.set(lc.id, lc);
+              missingOnServer.push(lc);
+            } else {
+              const existing = coverMap.get(lc.id);
+              coverMap.set(lc.id, { ...existing, ...lc });
+            }
+          }
+        }
+
+        // Sync genuinely new missing local covers to the server in background
+        if (missingOnServer.length > 0) {
+          fetch('/api/covers/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ covers: missingOnServer })
+          }).catch(() => {});
+        }
+
+        const merged = Array.from(coverMap.values()).filter((c) => c && c.id && !allDeleted.has(c.id));
+        merged.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+        const oldIds = Array.isArray(serverCoversCache) ? serverCoversCache.map(c => c.id).join(',') : (localCovers.map(c => c.id).join(','));
+        const newIds = merged.map(c => c.id).join(',');
+        const changed = oldIds !== newIds || (serverCoversCache === null && merged.length > 0);
+
+        serverCoversCache = merged;
+        saveUserBooks(merged);
+
+        if (changed) {
+          window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: merged }));
+          try {
+            coversBroadcastChannel?.postMessage({ type: 'PAGELLE_COVERS_UPDATED', covers: merged });
+          } catch {}
+        }
+
+        return merged;
+      }
     } catch {
-      return [];
+      // Network fallback
     }
+
+    return loadUserBooks();
   })();
 
   try {
-    const res = await fetch('/api/covers');
-    if (res.ok) {
-      const data = await res.json();
-      const serverCovers = Array.isArray(data.covers) ? data.covers : [];
-      const serverDeleted = Array.isArray(data.deletedCoverIds) ? data.deletedCoverIds : [];
-
-      // Merge server tombstones into local deleted storage
-      serverDeleted.forEach((id) => markCoverDeleted(id));
-      const allDeleted = new Set([...getDeletedCoverIds(), ...serverDeleted]);
-
-      // Remove any tombstoned covers from local covers
-      localCovers = localCovers.filter((c) => c && c.id && !allDeleted.has(c.id));
-
-      const coverMap = new Map();
-      // 1. Add valid server covers (skipping deleted)
-      for (const sc of serverCovers) {
-        if (sc && sc.id && !allDeleted.has(sc.id)) {
-          coverMap.set(sc.id, sc);
-        }
-      }
-
-      // 2. Merge local covers that server might not have yet (NEVER tombstoned ones!)
-      const missingOnServer = [];
-      for (const lc of localCovers) {
-        if (lc && lc.id && !allDeleted.has(lc.id)) {
-          if (!coverMap.has(lc.id)) {
-            coverMap.set(lc.id, lc);
-            missingOnServer.push(lc);
-          } else {
-            const existing = coverMap.get(lc.id);
-            coverMap.set(lc.id, { ...existing, ...lc });
-          }
-        }
-      }
-
-      // Sync genuinely new missing local covers to the server in background
-      if (missingOnServer.length > 0) {
-        fetch('/api/covers/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ covers: missingOnServer })
-        }).catch(() => {});
-      }
-
-      const merged = Array.from(coverMap.values()).filter((c) => c && c.id && !allDeleted.has(c.id));
-      merged.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-
-      const oldLength = Array.isArray(serverCoversCache) ? serverCoversCache.length : (localCovers.length || 0);
-      const changed = oldLength !== merged.length || JSON.stringify(serverCoversCache?.map(c => c.id)) !== JSON.stringify(merged.map(c => c.id));
-
-      serverCoversCache = merged;
-      saveUserBooks(merged);
-
-      if (changed) {
-        window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: merged }));
-        try {
-          coversBroadcastChannel?.postMessage({ type: 'PAGELLE_COVERS_UPDATED', covers: merged });
-        } catch {}
-      }
-
-      return merged;
-    }
-  } catch {
-    // Network fallback
+    return await inFlightSyncPromise;
+  } finally {
+    inFlightSyncPromise = null;
   }
-
-  return loadUserBooks();
 }
 
 export async function publishCommunityCover(coverPayload) {
@@ -2554,10 +2581,14 @@ export function getAllCommunityMembers() {
     const allCommunityCovers = loadUserBooks();
     if (Array.isArray(allCommunityCovers)) {
       allCommunityCovers.forEach((cov) => {
-        if (cov.submittedBy && cov.submittedByEmail) {
+        const sName = cov.submittedByName || cov.submittedBy || cov.designer || cov.author;
+        const sEmail = cov.submittedByEmail || '';
+        const sId = cov.submittedById || (sEmail ? `usr-${sEmail.replace(/[^a-z0-9]/g, '-')}` : null);
+        if (sName && (sEmail || sId)) {
           addOrMergeMember({
-            name: cov.submittedBy,
-            email: cov.submittedByEmail,
+            id: sId,
+            name: sName,
+            email: sEmail,
             role: 'Book Jacket Contributor',
             bio: '',
             accountType: 'Personal'
@@ -3198,11 +3229,14 @@ export function getMemberPosts(targetUser) {
     const cName = String(c.submittedByName || c.designer || '').toLowerCase().trim();
     const cUser = String(c.submittedByUsername || '').toLowerCase().trim();
 
+    const cAuthor = String(c.author || '').toLowerCase().trim();
+    const cDesigner = String(c.designer || '').toLowerCase().trim();
+
     if (email && cEmail && cEmail === email) return true;
     if (id && cId && cId === id) return true;
     if (username && cUser && cUser === username) return true;
     if (isOwner && (cEmail === OWNER_EMAIL.toLowerCase() || cName === 'dhanush' || cId === 'usr-admin-owner')) return true;
-    if (name && cName && cName === name && (email || id)) return true;
+    if (name && (cName === name || cAuthor === name || cDesigner === name)) return true;
     return false;
   });
 

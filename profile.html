@@ -142,6 +142,7 @@
       <div class="profile-tabs-bar">
         <button type="button" class="profile-tab-btn active" id="tabCreated">Created Covers (<span id="tabCreatedCount">0</span>)</button>
         <button type="button" class="profile-tab-btn" id="tabSaved">Saved / Favorites (<span id="tabSavedCount">0</span>)</button>
+        <button type="button" class="profile-tab-btn" id="tabCommunity">All Community Covers (<span id="tabCommunityCount">0</span>)</button>
       </div>
 
       <!-- TAB PANEL 1: CREATED COVERS -->
@@ -152,14 +153,17 @@
         <div class="profile-empty-state hidden" id="userPostsEmpty">
           <div class="empty-icon-wrap">
             <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></line>
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
               <circle cx="8.5" cy="8.5" r="1.5"></circle>
               <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
           </div>
           <h3 class="empty-title">Nothing to show... yet!</h3>
           <p class="empty-subtitle">Upload and publish book jackets you’ve designed or collected to build your personal showcase.</p>
-          <a href="add-cover.html" class="primary-add-btn">+ ADD YOUR FIRST BOOK COVER</a>
+          <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <a href="add-cover.html" class="primary-add-btn">+ ADD YOUR FIRST BOOK COVER</a>
+            <button type="button" class="profile-tab-btn" id="viewCommunityFromEmptyBtn" style="height: 38px; display: inline-flex; align-items: center; border-radius: 999px; padding: 0 16px; border: 1px solid var(--border-gold); background: var(--bg-card); color: var(--text-gold); cursor: pointer;">EXPLORE COMMUNITY COVERS</button>
+          </div>
         </div>
       </section>
 
@@ -177,6 +181,24 @@
           <h3 class="empty-title">No saved book covers yet</h3>
           <p class="empty-subtitle">Explore the archive and click "Save" on any book cover to collect it in your library.</p>
           <a href="browse.html" class="primary-add-btn">BROWSE BOOK COVERS</a>
+        </div>
+      </section>
+
+      <!-- TAB PANEL 3: ALL COMMUNITY COVERS -->
+      <section class="profile-gallery-section hidden" id="panelCommunity">
+        <div class="gallery-grid" id="userCommunityGrid">
+          <!-- Populated dynamically with all community covers live -->
+        </div>
+        <div class="profile-empty-state hidden" id="userCommunityEmpty">
+          <div class="empty-icon-wrap">
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+          </div>
+          <h3 class="empty-title">No community covers yet</h3>
+          <p class="empty-subtitle">When members upload book covers, they will appear here live for everyone to explore.</p>
+          <a href="add-cover.html" class="primary-add-btn">+ ADD A COMMUNITY BOOK COVER</a>
         </div>
       </section>
     </div>

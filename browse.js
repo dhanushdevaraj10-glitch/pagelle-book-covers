@@ -113,9 +113,12 @@ function renderGallery() {
 
 async function init() {
   initAuthHeader();
-  await syncCommunityCovers();
   renderGenreTabs();
   renderGallery();
+  syncCommunityCovers().then(() => {
+    renderGenreTabs();
+    renderGallery();
+  });
 
   let searchDebounceTimer = null;
   searchInputEl.addEventListener('input', (e) => {
