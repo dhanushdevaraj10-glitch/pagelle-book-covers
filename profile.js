@@ -26,7 +26,7 @@ import {
   fetchUserProfileFromServer,
   getMemberPosts,
   getDeletedCoverIds
-} from './shared.js?v=2.2.1';
+} from './shared.js?v=2.2.2';
 
 function escapeHtml(str) {
   return String(str || '')
@@ -87,14 +87,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const tabCreated = document.getElementById('tabCreated');
   const tabSaved = document.getElementById('tabSaved');
-  const tabCommunity = document.getElementById('tabCommunity');
-  const tabCommunityCountEl = document.getElementById('tabCommunityCount');
   const panelCreated = document.getElementById('panelCreated');
   const panelSaved = document.getElementById('panelSaved');
-  const panelCommunity = document.getElementById('panelCommunity');
-  const userCommunityGrid = document.getElementById('userCommunityGrid');
-  const userCommunityEmpty = document.getElementById('userCommunityEmpty');
-  const viewCommunityFromEmptyBtn = document.getElementById('viewCommunityFromEmptyBtn');
   const shareBtn = document.getElementById('profileShareBtn');
 
   // Change Profile Picture elements
@@ -546,22 +540,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         userSavedGrid.appendChild(createBookCardElement(book, detailModal.open, 'book-card-btn'));
       });
     }
-
-    // Render All Community Covers grid (visible to all users live)
-    const allCommunityCovers = loadUserBooks().filter((c) => c && c.id && !deletedIds.has(c.id));
-    if (tabCommunityCountEl) tabCommunityCountEl.textContent = String(allCommunityCovers.length);
-
-    if (userCommunityGrid) {
-      userCommunityGrid.innerHTML = '';
-      if (allCommunityCovers.length === 0) {
-        if (userCommunityEmpty) userCommunityEmpty.classList.remove('hidden');
-      } else {
-        if (userCommunityEmpty) userCommunityEmpty.classList.add('hidden');
-        allCommunityCovers.forEach((book) => {
-          userCommunityGrid.appendChild(createBookCardElement(book, detailModal.open, 'book-card-btn'));
-        });
-      }
-    }
   }
 
   renderProfileData();
@@ -570,17 +548,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   function selectProfileTab(tabName) {
     tabCreated.classList.toggle('active', tabName === 'created');
     tabSaved.classList.toggle('active', tabName === 'saved');
-    if (tabCommunity) tabCommunity.classList.toggle('active', tabName === 'community');
 
     panelCreated.classList.toggle('hidden', tabName !== 'created');
     panelSaved.classList.toggle('hidden', tabName !== 'saved');
-    if (panelCommunity) panelCommunity.classList.toggle('hidden', tabName !== 'community');
   }
 
   tabCreated.addEventListener('click', () => selectProfileTab('created'));
   tabSaved.addEventListener('click', () => selectProfileTab('saved'));
-  if (tabCommunity) tabCommunity.addEventListener('click', () => selectProfileTab('community'));
-  if (viewCommunityFromEmptyBtn) viewCommunityFromEmptyBtn.addEventListener('click', () => selectProfileTab('community'));
 
   // 9. Followers, Following & Community Profiles Exploration Logic
   function getExploreMembers() {
