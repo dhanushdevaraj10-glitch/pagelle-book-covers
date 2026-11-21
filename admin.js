@@ -109,8 +109,26 @@ async function fetchAdminOverview() {
   }
 
   const token = isOwner ? 'pagelle_admin_master_session_token_dhanush_2026' : (session.token || '');
-  const res = await fetch('/api/admin/overview', {
-    headers: { 'x-auth-token': token }
+
+  // Synchronize any client-side logs or accounts to server
+  try {
+    const localLogs = JSON.parse(localStorage.getItem('best_book_covers_login_logs_v1') || '[]');
+    const localAccounts = JSON.parse(localStorage.getItem('best_book_covers_accounts_v1') || '[]');
+    if (localLogs.length > 0 || localAccounts.length > 0) {
+      await fetch('/api/admin/sync-logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token
+        },
+        body: JSON.stringify({ logs: localLogs, accounts: localAccounts })
+      }).catch(() => {});
+    }
+  } catch (e) {}
+
+  const res = await fetch(`/api/admin/overview?_t=${Date.now()}`, {
+    headers: { 'x-auth-token': token },
+    cache: 'no-store'
   });
 
   if (!res.ok) {
@@ -135,10 +153,14 @@ function renderStats() {
   const logs = overviewData.loginLogs || [];
   const covers = overviewData.communityCovers || [];
 
-  const todayPrefix = new Date().toISOString().slice(0, 10);
-  const loginsToday = logs.filter(
-    (l) => l.status === 'Success' && String(l.timestamp || '').startsWith(todayPrefix)
-  ).length;
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const nowLocal = new Date();
+  const todayLocal = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, '0')}-${String(nowLocal.getDate()).padStart(2, '0')}`;
+  const loginsToday = logs.filter((l) => {
+    if (l.status !== 'Success') return false;
+    const ts = String(l.timestamp || '');
+    return ts.startsWith(todayUtc) || ts.startsWith(todayLocal);
+  }).length;
 
   navUsersCountEl.textContent = String(users.length);
   navLogsCountEl.textContent = String(logs.length);
@@ -443,6 +465,37 @@ async function init() {
       showToast('Admin password updated successfully.');
     });
   }
+
+  // Live cross-tab / cross-window sync listener
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const authChannel = new BroadcastChannel('pagelle_auth_channel');
+      authChannel.onmessage = (event) => {
+        if (event.data && (event.data.type === 'LOGIN_EVENT' || event.data.type === 'NEW_USER')) {
+          fetchAdminOverview();
+        }
+      };
+    }
+  } catch (e) {}
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'best_book_covers_login_logs_v1' || e.key === 'best_book_covers_accounts_v1') {
+      fetchAdminOverview();
+    }
+  });
+
+  // Auto-refresh every 5 seconds when visible so new logins appear in real-time
+  setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      fetchAdminOverview();
+    }
+  }, 5000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      fetchAdminOverview();
+    }
+  });
 
   await fetchAdminOverview();
 }

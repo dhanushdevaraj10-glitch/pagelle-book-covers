@@ -13,6 +13,26 @@
           return;
         }
       }
+      // Send background heartbeat ping to keep server and admin dashboard updated in real-time
+      try {
+        if (typeof fetch === 'function') {
+          fetch('/api/auth/heartbeat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-auth-token': session.token || ''
+            },
+            body: JSON.stringify({
+              id: session.userId,
+              email: session.email,
+              name: session.name,
+              role: session.role,
+              avatar: session.avatar
+            }),
+            keepalive: true
+          }).catch(function() {});
+        }
+      } catch (e) {}
       return;
     }
   } catch (e) {

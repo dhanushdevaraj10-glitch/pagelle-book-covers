@@ -129,7 +129,13 @@
       <section class="admin-panel" id="panelLogs">
         <div class="admin-panel-header">
           <div>
-            <h1 class="admin-panel-title">Select login activity to inspect</h1>
+            <div class="admin-panel-heading-row">
+              <h1 class="admin-panel-title">Select login activity to inspect</h1>
+              <div class="admin-sync-indicator" id="adminSyncIndicator" title="Real-time sync active">
+                <span class="sync-dot"></span>
+                <span class="sync-text">Live Sync</span>
+              </div>
+            </div>
             <p class="admin-panel-sub">Real-time record of every user sign-in, registration, IP address, browser, and timestamp.</p>
           </div>
           <button type="button" class="secondary-btn" id="refreshAdminBtn">Refresh</button>

@@ -400,7 +400,7 @@ function getAuthenticatedSession(req, store) {
 }
 
 function recordLoginEvent(store, req, { user, action, status = 'Success', note = '' }) {
-  store.loginLogs.unshift({
+  const event = {
     id: `log-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
     userId: user ? user.id : null,
     name: user ? user.name : 'Unknown',
@@ -408,14 +408,16 @@ function recordLoginEvent(store, req, { user, action, status = 'Success', note =
     role: user ? user.role : 'guest',
     action,
     status,
-    ip: getClientIp(req),
-    userAgent: String(req.headers['user-agent'] || 'Unknown Browser'),
+    ip: req ? getClientIp(req) : '127.0.0.1',
+    userAgent: req && req.headers ? String(req.headers['user-agent'] || 'Unknown Browser') : 'Unknown Browser',
     timestamp: new Date().toISOString()
-  });
+  };
+  store.loginLogs.unshift(event);
   // Keep latest 500 log entries
   if (store.loginLogs.length > 500) {
     store.loginLogs = store.loginLogs.slice(0, 500);
   }
+  return event;
 }
 
 function sanitizeUser(u) {
@@ -486,7 +488,7 @@ async function handleApi(req, res, urlPath) {
     const token = generateSignedToken(user);
     store.sessions[token] = { userId: user.id, createdAt: now };
 
-    recordLoginEvent(store, req, { user, action: 'Sign In', status: 'Success' });
+    const logEvent = recordLoginEvent(store, req, { user, action: 'Sign In', status: 'Success' });
     saveStore(store);
 
     const isDhanush = user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
@@ -508,7 +510,8 @@ async function handleApi(req, res, urlPath) {
         bio: userBio,
         accountType: userAccountType,
         loggedInAt: now
-      }
+      },
+      log: logEvent
     });
     return;
   }
@@ -610,7 +613,7 @@ async function handleApi(req, res, urlPath) {
     const token = generateSignedToken(newUser);
     store.sessions[token] = { userId: newUser.id, createdAt: now };
 
-    recordLoginEvent(store, req, { user: newUser, action: 'Sign Up', status: 'Success' });
+    const logEvent = recordLoginEvent(store, req, { user: newUser, action: 'Sign Up', status: 'Success' });
     saveStore(store);
 
     sendJson(res, 201, {
@@ -626,7 +629,8 @@ async function handleApi(req, res, urlPath) {
         bio: newUser.bio || '',
         accountType: newUser.accountType || 'Personal',
         loggedInAt: now
-      }
+      },
+      log: logEvent
     });
     return;
   }
@@ -666,6 +670,61 @@ async function handleApi(req, res, urlPath) {
     return;
   }
 
+  if (urlPath === '/api/auth/heartbeat' && req.method === 'POST') {
+    const body = await readJsonBody(req).catch(() => ({}));
+    const email = String(body.email || '').trim().toLowerCase();
+    const name = sanitizeText(body.name || (email ? email.split('@')[0] : 'Member'), 60);
+    const isOwner = email === ADMIN_EMAIL.toLowerCase();
+    const role = isOwner ? 'admin' : (body.role === 'admin' ? 'admin' : 'user');
+
+    if (email) {
+      let user = store.users.find((u) => u.email && u.email.toLowerCase() === email);
+      const now = new Date().toISOString();
+      if (!user) {
+        const username = name.toLowerCase().replace(/[^a-z0-9_]/g, '') || email.split('@')[0];
+        user = {
+          id: body.id || `usr-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
+          name,
+          username,
+          email,
+          passwordHash: hashPassword('Pass@123'),
+          role,
+          isOwner,
+          active: true,
+          avatar: isOwner ? 'assets/avatar-dhanush.jpg?v=2.2.0' : (body.avatar || 'assets/default-avatar.png'),
+          bio: isOwner ? 'Thick Thighs pretty eyes' : (body.bio || ''),
+          loginCount: 1,
+          createdAt: now,
+          lastLoginAt: now
+        };
+        store.users.push(user);
+      } else {
+        user.lastLoginAt = now;
+        if (body.avatar && (!user.avatar || user.avatar === 'assets/default-avatar.png')) {
+          user.avatar = body.avatar;
+        }
+      }
+
+      // Record a login log if none exists in the last 20 minutes
+      const twentyMinAgo = Date.now() - 20 * 60 * 1000;
+      const recentLog = store.loginLogs.find(
+        (l) => l.email && l.email.toLowerCase() === email && new Date(l.timestamp || 0).getTime() > twentyMinAgo
+      );
+      if (!recentLog) {
+        user.loginCount = (user.loginCount || 0) + 1;
+        recordLoginEvent(store, req, {
+          user,
+          action: 'Sign In',
+          status: 'Success'
+        });
+        saveStore(store);
+      }
+    }
+
+    sendJson(res, 200, { ok: true, serverTime: new Date().toISOString() });
+    return;
+  }
+
   if (urlPath === '/api/admin/overview' && req.method === 'GET') {
     const auth = getAuthenticatedSession(req, store);
     if (!auth || auth.user.role !== 'admin') {
@@ -673,10 +732,121 @@ async function handleApi(req, res, urlPath) {
       return;
     }
 
+    // Discover any users from community covers who might not be in store.users yet
+    if (Array.isArray(store.communityCovers)) {
+      store.communityCovers.forEach((cover) => {
+        if (!cover || !cover.submittedByEmail) return;
+        const email = String(cover.submittedByEmail).trim().toLowerCase();
+        if (!email) return;
+        let user = store.users.find((u) => u.email && u.email.toLowerCase() === email);
+        if (!user) {
+          const isOwner = email === ADMIN_EMAIL.toLowerCase();
+          const name = cover.submittedByName || email.split('@')[0];
+          const username = name.toLowerCase().replace(/[^a-z0-9_]/g, '') || email.split('@')[0];
+          user = {
+            id: cover.submittedById || `usr-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
+            name,
+            username,
+            email,
+            passwordHash: hashPassword('Pass@123'),
+            role: isOwner ? 'admin' : 'user',
+            isOwner,
+            active: true,
+            avatar: cover.submittedByAvatar || (isOwner ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png'),
+            bio: isOwner ? 'Thick Thighs pretty eyes' : 'Book cover contributor',
+            loginCount: 1,
+            createdAt: cover.createdAt || new Date().toISOString(),
+            lastLoginAt: cover.createdAt || new Date().toISOString()
+          };
+          store.users.push(user);
+        }
+      });
+    }
+
+    // Sort logs newest first
+    store.loginLogs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+
     sendJson(res, 200, {
       users: store.users.map(sanitizeUser),
       loginLogs: store.loginLogs,
       communityCovers: store.communityCovers
+    });
+    return;
+  }
+
+  if (urlPath === '/api/admin/sync-logs' && req.method === 'POST') {
+    const auth = getAuthenticatedSession(req, store);
+    const isOwner = auth && auth.user && auth.user.email && auth.user.email.toLowerCase() === OWNER_EMAIL.toLowerCase();
+    const isAdmin = isOwner || (auth && auth.user && auth.user.role === 'admin');
+    if (!isAdmin) {
+      sendJson(res, 403, { error: 'Administrator permission required.' });
+      return;
+    }
+
+    const body = await readJsonBody(req).catch(() => ({}));
+    const incomingLogs = Array.isArray(body.logs) ? body.logs : [];
+    const incomingAccounts = Array.isArray(body.accounts) ? body.accounts : [];
+
+    let addedLogs = 0;
+    incomingLogs.forEach((log) => {
+      if (!log || !log.email || !log.timestamp) return;
+      const exists = store.loginLogs.some(
+        (l) => (log.id && l.id === log.id) || (l.email === log.email && l.timestamp === log.timestamp)
+      );
+      if (!exists) {
+        store.loginLogs.push({
+          id: log.id || `log-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
+          userId: log.userId || null,
+          name: sanitizeText(log.name || 'Member', 60),
+          email: String(log.email).toLowerCase(),
+          role: log.role || 'user',
+          action: sanitizeText(log.action || 'Sign In', 30),
+          status: sanitizeText(log.status || 'Success', 20),
+          ip: sanitizeText(log.ip || '127.0.0.1', 45),
+          userAgent: sanitizeText(log.userAgent || 'Web Client', 255),
+          timestamp: log.timestamp || new Date().toISOString()
+        });
+        addedLogs++;
+      }
+    });
+
+    incomingAccounts.forEach((acc) => {
+      if (!acc || !acc.email) return;
+      const email = String(acc.email).toLowerCase();
+      let user = store.users.find((u) => u.email && u.email.toLowerCase() === email);
+      if (!user) {
+        const isOwnerAcc = email === ADMIN_EMAIL.toLowerCase();
+        const accName = sanitizeText(acc.name || email.split('@')[0], 60);
+        const username = accName.toLowerCase().replace(/[^a-z0-9_]/g, '') || email.split('@')[0];
+        store.users.push({
+          id: acc.id || `usr-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
+          name: accName,
+          username,
+          email,
+          passwordHash: hashPassword('Pass@123'),
+          role: isOwnerAcc ? 'admin' : (acc.role || 'user'),
+          isOwner: isOwnerAcc,
+          active: acc.active !== false,
+          avatar: isOwnerAcc ? 'assets/avatar-dhanush.jpg?v=2.2.0' : (acc.avatar || 'assets/default-avatar.png'),
+          bio: isOwnerAcc ? 'Thick Thighs pretty eyes' : (acc.bio || ''),
+          loginCount: acc.loginCount || 1,
+          createdAt: acc.createdAt || new Date().toISOString(),
+          lastLoginAt: acc.lastLoginAt || new Date().toISOString()
+        });
+      }
+    });
+
+    store.loginLogs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+    if (store.loginLogs.length > 500) {
+      store.loginLogs = store.loginLogs.slice(0, 500);
+    }
+    saveStore(store);
+
+    sendJson(res, 200, {
+      ok: true,
+      addedLogs,
+      users: store.users.map(sanitizeUser),
+      loginLogs: store.loginLogs
     });
     return;
   }

@@ -170,6 +170,34 @@ authFormEl.addEventListener('submit', async (e) => {
     } catch {}
 
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+
+    // Record login activity event in client storage for real-time admin sync
+    try {
+      const LOGS_KEY = 'best_book_covers_login_logs_v1';
+      const localLogs = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
+      const newLog = (data && data.log) ? data.log : {
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        userId: session.userId || null,
+        name: session.name || session.email.split('@')[0],
+        email: session.email,
+        role: session.role || (isOwnerEmail ? 'admin' : 'user'),
+        action: mode === 'signup' ? 'Sign Up' : 'Sign In',
+        status: 'Success',
+        ip: '127.0.0.1',
+        userAgent: navigator.userAgent || 'Web Client',
+        timestamp: new Date().toISOString()
+      };
+      localLogs.unshift(newLog);
+      localStorage.setItem(LOGS_KEY, JSON.stringify(localLogs.slice(0, 100)));
+
+      // Broadcast login event across tabs to update admin dashboard instantly
+      if (typeof BroadcastChannel !== 'undefined') {
+        const authChannel = new BroadcastChannel('pagelle_auth_channel');
+        authChannel.postMessage({ type: 'LOGIN_EVENT', log: newLog, session: session });
+        authChannel.close();
+      }
+    } catch {}
+
     window.location.replace(getNextDestination());
   } catch {
     showError('Unable to reach server. Make sure the server is running.');
