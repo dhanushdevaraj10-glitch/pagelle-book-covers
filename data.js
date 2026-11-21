@@ -132,240 +132,6 @@ const RAW_BOOKS = [
     image: 'assets/covers/it-ends-with-us.jpg',
     featured: true,
     desc: 'A bold portrait of resilience and difficult choices, framed by shattered pink orchid petals on pale oak.'
-  },
-  {
-    id: 'bk-13',
-    title: 'Letters to Summer',
-    author: 'Camille Laurent',
-    genre: 'Fiction',
-    year: '2024',
-    designer: 'Editions Midi',
-    template: 'archway',
-    palette: 'terracotta',
-    seed: 13,
-    featured: false,
-    desc: 'Unsent postcards found in a Mediterranean villa reveal forty years of quiet devotion.'
-  },
-  {
-    id: 'bk-14',
-    title: 'Echoes of Kepler',
-    author: 'Nadia Volkov',
-    genre: 'Sci-Fi & Fantasy',
-    year: '2026',
-    designer: 'Orbit Design',
-    template: 'cosmic',
-    palette: 'plum',
-    seed: 14,
-    featured: false,
-    desc: 'First-contact linguistics meets deep-space solitude on a tidally locked exoplanet.'
-  },
-  {
-    id: 'bk-15',
-    title: 'Paper Lanterns',
-    author: 'Haruki Sato',
-    genre: 'Poetry',
-    year: '2024',
-    designer: 'Kyoto Press',
-    template: 'sunburst',
-    palette: 'cream',
-    seed: 15,
-    featured: false,
-    desc: 'Minimalist verse inspired by dusk over mountain shrines and autumn river crossings.'
-  },
-  {
-    id: 'bk-16',
-    title: 'The Hollow Manor',
-    author: 'Arthur Pendelton',
-    genre: 'Mystery & Noir',
-    year: '2023',
-    designer: 'Blackwood Art',
-    template: 'archway',
-    palette: 'plum',
-    seed: 16,
-    featured: false,
-    desc: 'Twelve guests snowbound in a Yorkshire estate must reconstruct a missing century of family history.'
-  },
-  {
-    id: 'bk-17',
-    title: 'Grid & Gesture',
-    author: 'Hannah Lind',
-    genre: 'Design & Art',
-    year: '2025',
-    designer: 'Formwerk',
-    template: 'bauhaus',
-    palette: 'cobalt',
-    seed: 17,
-    featured: false,
-    desc: 'How geometric abstraction transformed mid-century paperback cover design across Europe and America.'
-  },
-  {
-    id: 'bk-18',
-    title: 'Beneath the Salt Line',
-    author: 'Owen Gallagher',
-    genre: 'Fiction',
-    year: '2025',
-    designer: 'Tide Press',
-    template: 'editorial',
-    palette: 'slate',
-    seed: 18,
-    featured: false,
-    desc: 'A lighthouse keeper and a marine biologist spend one storm-swept winter documenting migrating whales.'
-  },
-  {
-    id: 'bk-19',
-    title: 'Atlas of Lost Voices',
-    author: 'Elena Rostova',
-    genre: 'Non-Fiction',
-    year: '2024',
-    designer: 'Meridian House',
-    template: 'botanical',
-    palette: 'midnight',
-    seed: 19,
-    featured: false,
-    desc: 'A deeply researched cultural history of vanishing oral traditions and island dialects.'
-  },
-  {
-    id: 'bk-20',
-    title: 'Static in Neon',
-    author: 'Devon Brooks',
-    genre: 'Sci-Fi & Fantasy',
-    year: '2025',
-    designer: 'Chroma Press',
-    template: 'brutalist',
-    palette: 'cobalt',
-    seed: 20,
-    featured: false,
-    desc: 'Pirate radio broadcasters in a rain-drenched megacity transmit banned memories across the grid.'
-  },
-  {
-    id: 'bk-21',
-    title: 'The Quiet Botanist',
-    author: 'Margaux Delacroix',
-    genre: 'Non-Fiction',
-    year: '2023',
-    designer: 'Jardin Books',
-    template: 'botanical',
-    palette: 'cream',
-    seed: 21,
-    featured: false,
-    desc: 'The untold story of nineteenth-century illustrators who painted rare orchids by candlelight.'
-  },
-  {
-    id: 'bk-22',
-    title: 'Crimson Nocturne',
-    author: 'Victor Thorne',
-    genre: 'Mystery & Noir',
-    year: '2025',
-    designer: 'Velvet Ink',
-    template: 'noir',
-    palette: 'crimson',
-    seed: 22,
-    featured: false,
-    desc: 'A jazz trumpeter becomes the sole witness to a disappearance on New Year’s Eve in 1962.'
-  },
-  {
-    id: 'bk-23',
-    title: 'Letters of Obsidian',
-    author: 'Yuna Park',
-    genre: 'Poetry',
-    year: '2026',
-    designer: 'Seoul Folio',
-    template: 'editorial',
-    palette: 'midnight',
-    seed: 23,
-    featured: false,
-    desc: 'Sharp, luminous fragments exploring urban solitude, moonlight, and volcanic stone.'
-  },
-  {
-    id: 'bk-24',
-    title: 'The Bronze Observatory',
-    author: 'Lucas Meyer',
-    genre: 'Classics',
-    year: '2022',
-    designer: 'Clarendon Editions',
-    template: 'cosmic',
-    palette: 'terracotta',
-    seed: 24,
-    featured: false,
-    desc: 'Restored 1920s essays on clockwork astrolabes, celestial mechanics, and human curiosity.'
-  },
-  {
-    id: 'bk-25',
-    title: 'Red Sun Over Harbor',
-    author: 'Mei-Ling Zhou',
-    genre: 'Fiction',
-    year: '2025',
-    designer: 'Harbor Studio',
-    template: 'sunburst',
-    palette: 'crimson',
-    seed: 25,
-    featured: false,
-    desc: 'Three generations of shipbuilders navigate changing tides in a bustling southern port.'
-  },
-  {
-    id: 'bk-26',
-    title: 'Type & Temperament',
-    author: 'Rolf Becker',
-    genre: 'Design & Art',
-    year: '2024',
-    designer: 'Zurich Print',
-    template: 'editorial',
-    palette: 'coral',
-    seed: 26,
-    featured: false,
-    desc: 'A practical handbook on expressive serif pairing, dust-jacket proportions, and ink contrast.'
-  },
-  {
-    id: 'bk-27',
-    title: 'Shadows of Antwerp',
-    author: 'Pieter Vermeulen',
-    genre: 'Mystery & Noir',
-    year: '2024',
-    designer: 'Canal Press',
-    template: 'bauhaus',
-    palette: 'slate',
-    seed: 27,
-    featured: false,
-    desc: 'A diamond appraiser uncovers a century-old forgery ring hidden inside Flemish guild records.'
-  },
-  {
-    id: 'bk-28',
-    title: 'Wilderness of Mirrors',
-    author: 'Clara Whitfield',
-    genre: 'Classics',
-    year: '2023',
-    designer: 'Folio Archive',
-    template: 'archway',
-    palette: 'forest',
-    seed: 28,
-    featured: false,
-    desc: 'Collected allegories on perception, labyrinthine libraries, and the craft of translation.'
-  },
-  {
-    id: 'bk-29',
-    title: 'The Saffron Almanac',
-    author: 'Priya Nair',
-    genre: 'Non-Fiction',
-    year: '2026',
-    designer: 'Spice & Reed',
-    template: 'botanical',
-    palette: 'ochre',
-    seed: 29,
-    featured: false,
-    desc: 'A visual journey through ancient spice routes, hand-dyed textiles, and botanical pigments.'
-  },
-  {
-    id: 'bk-30',
-    title: 'Solstice in Stone',
-    author: 'Gideon Shaw',
-    genre: 'Poetry',
-    year: '2025',
-    designer: 'Monolith Press',
-    template: 'brutalist',
-    palette: 'plum',
-    seed: 30,
-    featured: false,
-    desc: 'Sparse, architectural verses written among Neolithic standing stones in the Scottish Hebrides.'
   }
 ];
 
@@ -390,7 +156,7 @@ export const ESSENTIAL_COLLECTIONS = [
     title: 'Modern Fiction & Contemporary Bestsellers',
     description:
       'Compelling storytelling, vibrant jacket art, emotional journeys, and acclaimed modern editions.',
-    bookIds: ['bk-4', 'bk-7', 'bk-10', 'bk-11', 'bk-12', 'bk-13', 'bk-17', 'bk-24']
+    bookIds: ['bk-4', 'bk-5', 'bk-7', 'bk-9', 'bk-10', 'bk-11', 'bk-12']
   },
   {
     id: 'col-modernist',
@@ -398,7 +164,7 @@ export const ESSENTIAL_COLLECTIONS = [
     title: 'Timeless Literary & Dystopian Classics',
     description:
       'Iconic collector covers, enduring masterpieces, and existential literature from Franz Kafka, Albert Camus, George Orwell, and classic authors.',
-    bookIds: ['bk-1', 'bk-2', 'bk-3', 'bk-8', 'bk-23', 'bk-27']
+    bookIds: ['bk-1', 'bk-2', 'bk-3', 'bk-8']
   },
   {
     id: 'col-cosmos',
@@ -406,7 +172,7 @@ export const ESSENTIAL_COLLECTIONS = [
     title: 'Mystery, Suspense & Noir Crime',
     description:
       'Atmospheric crime fiction, investigative tension, noir typography, and captivating thrillers.',
-    bookIds: ['bk-6', 'bk-15', 'bk-21', 'bk-26']
+    bookIds: ['bk-6']
   },
   {
     id: 'col-scifi',
@@ -414,7 +180,7 @@ export const ESSENTIAL_COLLECTIONS = [
     title: 'Sci-Fi, Speculative & Cosmic Visions',
     description:
       'Futuristic jacket art, interstellar voyages, dystopian epics, and imaginative world-building.',
-    bookIds: ['bk-14', 'bk-19']
+    bookIds: []
   },
   {
     id: 'col-design',
@@ -422,7 +188,7 @@ export const ESSENTIAL_COLLECTIONS = [
     title: 'Design, Typography & Visual Arts',
     description:
       'Masterclass editorial layouts, Swiss typography, bold palettes, and visual monographs.',
-    bookIds: ['bk-16', 'bk-25']
+    bookIds: []
   },
   {
     id: 'col-nonfiction',
@@ -430,7 +196,7 @@ export const ESSENTIAL_COLLECTIONS = [
     title: 'Non-Fiction, Essays & Memoirs',
     description:
       'Thought-provoking biographies, philosophy, lived histories, and groundbreaking real-world chronicles.',
-    bookIds: ['bk-18', 'bk-20', 'bk-28']
+    bookIds: []
   },
   {
     id: 'col-poetry',
@@ -438,6 +204,6 @@ export const ESSENTIAL_COLLECTIONS = [
     title: 'Poetry & Expressive Verse',
     description:
       'Soul-stirring verses, lyricism, and poignant poetic anthologies in minimal jacket editions.',
-    bookIds: ['bk-22', 'bk-29']
+    bookIds: []
   }
 ];
