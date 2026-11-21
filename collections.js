@@ -14,12 +14,13 @@ function matchesGenre(bookGenre, targetGenre) {
   const bg = String(bookGenre).toLowerCase().trim();
   const tg = String(targetGenre).toLowerCase().trim();
   if (bg === tg) return true;
-  if ((tg.includes('sci-fi') || tg.includes('fantasy')) && (bg.includes('sci-fi') || bg.includes('fantasy'))) return true;
-  if ((tg.includes('mystery') || tg.includes('noir') || tg.includes('thriller')) && (bg.includes('mystery') || bg.includes('noir') || bg.includes('thriller'))) return true;
-  if ((tg.includes('design') || tg.includes('art')) && (bg.includes('design') || bg.includes('art'))) return true;
-  if ((tg.includes('classic') || tg.includes('dystopian')) && (bg.includes('classic') || bg.includes('dystopian'))) return true;
-  if (tg.includes('non-fiction') && (bg.includes('non-fiction') || bg === 'nonfiction')) return true;
-  if (tg.includes('poetry') && bg.includes('poetry')) return true;
+  if ((tg.includes('sci-fi') || tg.includes('fantasy')) && (bg.includes('sci-fi') || bg.includes('fantasy') || bg.includes('space'))) return true;
+  if ((tg.includes('mystery') || tg.includes('noir') || tg.includes('thriller')) && (bg.includes('mystery') || bg.includes('noir') || bg.includes('thriller') || bg.includes('crime'))) return true;
+  if ((tg.includes('design') || tg.includes('art')) && (bg.includes('design') || bg.includes('art') || bg.includes('graphic'))) return true;
+  if ((tg.includes('classic') || tg.includes('dystopian')) && (bg.includes('classic') || bg.includes('dystopian') || bg.includes('historical'))) return true;
+  if (tg.includes('non-fiction') && (bg.includes('non-fiction') || bg.includes('nonfiction') || bg.includes('memoir') || bg.includes('biography') || bg.includes('essay'))) return true;
+  if (tg.includes('poetry') && (bg.includes('poetry') || bg.includes('verse') || bg.includes('poem'))) return true;
+  if (tg === 'fiction' && (bg.includes('fiction') || bg.includes('novel') || bg.includes('story') || bg.includes('romance') || bg.includes('drama'))) return true;
   return false;
 }
 
@@ -55,9 +56,10 @@ function getBooksForCollection(col) {
     if (!b || !b.id || deletedIds.has(b.id) || seenIds.has(b.id)) continue;
     let isMatch = false;
 
-    if (col.genre && matchesGenre(b.genre, col.genre)) {
+    const bGenre = b.genre || 'Fiction';
+    if (col.genre && matchesGenre(bGenre, col.genre)) {
       isMatch = true;
-    } else if (Array.isArray(col.genres) && col.genres.some((g) => matchesGenre(b.genre, g))) {
+    } else if (Array.isArray(col.genres) && col.genres.some((g) => matchesGenre(bGenre, g))) {
       isMatch = true;
     } else if (Array.isArray(col.bookIds) && col.bookIds.includes(b.id)) {
       isMatch = true;

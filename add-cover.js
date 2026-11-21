@@ -229,6 +229,10 @@ async function handleSubmit(e) {
   switchSourceMode('upload');
 
   publishSuccessTitleEl.textContent = `"${newBook.title}" published!`;
+  const collectionsBtn = document.getElementById('publishSuccessCollectionsBtn');
+  if (collectionsBtn) {
+    collectionsBtn.href = `collections.html?genre=${encodeURIComponent(newBook.genre || 'Fiction')}`;
+  }
   publishSuccessBannerEl.classList.remove('hidden');
   renderMySubmissions();
   showToast(`"${newBook.title}" added to the archive!`);
