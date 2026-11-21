@@ -126,9 +126,23 @@ function renderCarousel() {
 }
 
 function renderCollections() {
+  if (!collectionsGridEl) return;
   collectionsGridEl.innerHTML = '';
 
+  const allBooks = getAllBooks();
   ESSENTIAL_COLLECTIONS.forEach((col) => {
+    const books = allBooks.filter((b) => {
+      if (!b || !b.id) return false;
+      const bg = String(b.genre || '').toLowerCase().trim();
+      const cg = String(col.genre || '').toLowerCase().trim();
+      if (bg && cg && (bg === cg || bg.includes(cg) || cg.includes(bg))) return true;
+      if (Array.isArray(col.bookIds) && col.bookIds.includes(b.id)) return true;
+      return false;
+    });
+
+    // Skip collections that currently have no books
+    if (!books || books.length === 0) return;
+
     const link = document.createElement('a');
     link.href = `collections.html?id=${encodeURIComponent(col.id)}`;
     link.className = 'collection-card';
@@ -136,21 +150,17 @@ function renderCollections() {
     const fan = document.createElement('div');
     fan.className = 'collection-fan';
 
-    col.bookIds
-      .map((id) => findBookById(id))
-      .filter(Boolean)
-      .slice(0, 4)
-      .forEach((book) => {
-        const mini = document.createElement('div');
-        mini.className = 'fan-cover';
-        const img = document.createElement('img');
-        img.src = book.image;
-        img.alt = book.title;
-        img.loading = 'lazy';
-        img.decoding = 'async';
-        mini.appendChild(img);
-        fan.appendChild(mini);
-      });
+    books.slice(0, 4).forEach((book) => {
+      const mini = document.createElement('div');
+      mini.className = 'fan-cover';
+      const img = document.createElement('img');
+      img.src = book.image;
+      img.alt = book.title;
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      mini.appendChild(img);
+      fan.appendChild(mini);
+    });
 
     const body = document.createElement('div');
     body.className = 'collection-body';

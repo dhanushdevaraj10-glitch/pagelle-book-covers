@@ -80,6 +80,9 @@ function renderOverview() {
 
   ESSENTIAL_COLLECTIONS.forEach((col) => {
     const books = getBooksForCollection(col);
+    // Hide collection card completely if there are no books in this collection
+    if (!books || books.length === 0) return;
+
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = `collection-card${selectedId === col.id ? ' active' : ''}`;
@@ -130,6 +133,8 @@ function renderCollectionSections() {
 
   ESSENTIAL_COLLECTIONS.forEach((col) => {
     const books = getBooksForCollection(col);
+    // Hide collection section completely if there are no books in this collection
+    if (!books || books.length === 0) return;
 
     const section = document.createElement('div');
     section.className = 'collection-detail-block';
