@@ -385,24 +385,59 @@ export const CURATED_BOOKS = RAW_BOOKS.map((book) => ({
 
 export const ESSENTIAL_COLLECTIONS = [
   {
-    id: 'col-modernist',
-    title: 'Timeless Literary & Dystopian Classics',
+    id: 'col-literary',
+    genre: 'Fiction',
+    title: 'Modern Fiction & Contemporary Bestsellers',
     description:
-      'Iconic collector covers and enduring literary masterpieces from Franz Kafka, Albert Camus, George Orwell, and Frances Hodgson Burnett.',
-    bookIds: ['bk-1', 'bk-2', 'bk-3', 'bk-8']
+      'Compelling storytelling, vibrant jacket art, emotional journeys, and acclaimed modern editions.',
+    bookIds: ['bk-4', 'bk-7', 'bk-10', 'bk-11', 'bk-12', 'bk-13', 'bk-17', 'bk-24']
   },
   {
-    id: 'col-literary',
-    title: 'Modern Romance & Emotional Bestsellers',
+    id: 'col-modernist',
+    genre: 'Classics',
+    title: 'Timeless Literary & Dystopian Classics',
     description:
-      'Beloved contemporary novels featuring vibrant floral photography, satin ribbons, and unforgettable love stories.',
-    bookIds: ['bk-4', 'bk-7', 'bk-10', 'bk-11', 'bk-12']
+      'Iconic collector covers, enduring masterpieces, and existential literature from Franz Kafka, Albert Camus, George Orwell, and classic authors.',
+    bookIds: ['bk-1', 'bk-2', 'bk-3', 'bk-8', 'bk-23', 'bk-27']
   },
   {
     id: 'col-cosmos',
-    title: 'Young Adult Summer & Mystery Favorites',
+    genre: 'Mystery & Noir',
+    title: 'Mystery, Suspense & Noir Crime',
     description:
-      'Sunlit coastal escapes and unforgettable secrets captured in expressive coming-of-age jacket designs.',
-    bookIds: ['bk-5', 'bk-6', 'bk-9', 'bk-10']
+      'Atmospheric crime fiction, investigative tension, noir typography, and captivating thrillers.',
+    bookIds: ['bk-6', 'bk-15', 'bk-21', 'bk-26']
+  },
+  {
+    id: 'col-scifi',
+    genre: 'Sci-Fi & Fantasy',
+    title: 'Sci-Fi, Speculative & Cosmic Visions',
+    description:
+      'Futuristic jacket art, interstellar voyages, dystopian epics, and imaginative world-building.',
+    bookIds: ['bk-14', 'bk-19']
+  },
+  {
+    id: 'col-design',
+    genre: 'Design & Art',
+    title: 'Design, Typography & Visual Arts',
+    description:
+      'Masterclass editorial layouts, Swiss typography, bold palettes, and visual monographs.',
+    bookIds: ['bk-16', 'bk-25']
+  },
+  {
+    id: 'col-nonfiction',
+    genre: 'Non-Fiction',
+    title: 'Non-Fiction, Essays & Memoirs',
+    description:
+      'Thought-provoking biographies, philosophy, lived histories, and groundbreaking real-world chronicles.',
+    bookIds: ['bk-18', 'bk-20', 'bk-28']
+  },
+  {
+    id: 'col-poetry',
+    genre: 'Poetry',
+    title: 'Poetry & Expressive Verse',
+    description:
+      'Soul-stirring verses, lyricism, and poignant poetic anthologies in minimal jacket editions.',
+    bookIds: ['bk-22', 'bk-29']
   }
 ];
