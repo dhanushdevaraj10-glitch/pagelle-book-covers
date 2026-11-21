@@ -26,7 +26,7 @@ import {
   fetchUserProfileFromServer,
   getMemberPosts,
   getDeletedCoverIds
-} from './shared.js?v=2.2.2';
+} from './shared.js?v=2.3.0';
 
 function escapeHtml(str) {
   return String(str || '')
@@ -503,13 +503,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 8. Render Book Covers Gallery for active user
   function renderProfileData() {
     const deletedIds = new Set(getDeletedCoverIds());
-    let memberCovers = getMemberPosts(activeUser).filter((c) => c && c.id && !deletedIds.has(c.id));
+    const coverMap = new Map();
+
+    // 1. Add server covers for this profile if available
     if (serverProfileData && Array.isArray(serverProfileData.covers)) {
-      serverProfileData.covers = serverProfileData.covers.filter((c) => c && c.id && !deletedIds.has(c.id));
+      serverProfileData.covers.forEach((c) => {
+        if (c && c.id && !deletedIds.has(c.id)) {
+          coverMap.set(c.id, c);
+        }
+      });
     }
-    if (memberCovers.length === 0 && serverProfileData && Array.isArray(serverProfileData.covers) && serverProfileData.covers.length > 0) {
-      memberCovers = serverProfileData.covers.filter((c) => c && c.id && !deletedIds.has(c.id));
-    }
+
+    // 2. Merge local covers matching this profile
+    getMemberPosts(activeUser).forEach((c) => {
+      if (c && c.id && !deletedIds.has(c.id) && !coverMap.has(c.id)) {
+        coverMap.set(c.id, c);
+      }
+    });
+
+    let memberCovers = Array.from(coverMap.values());
+    memberCovers.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
     const coversCount = memberCovers.length;
     postsCountEl.textContent = String(coversCount);
@@ -981,15 +994,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  async function refreshProfileLive() {
+    const targetQuery = targetParam || (session ? (session.userId || session.id || session.email) : null);
+    if (!targetQuery) return;
+    try {
+      const data = await fetchUserProfileFromServer(targetQuery);
+      if (data && data.targetUser) {
+        serverProfileData = data;
+        if (!isSelf) {
+          activeUser = data.targetUser;
+        } else {
+          const cur = getCurrentSession();
+          activeUser = { ...data.targetUser, ...(cur || {}) };
+        }
+        renderHeaderInfo();
+        updateFollowButtonUI();
+        renderProfileData();
+        updateFollowersCountDisplay();
+      }
+    } catch {}
+  }
+
   window.addEventListener('pagelle:covers:updated', () => {
     renderProfileData();
+    refreshProfileLive();
   });
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      syncCommunityCovers().then(() => renderProfileData());
+      syncCommunityCovers().then(() => {
+        renderProfileData();
+        refreshProfileLive();
+      });
     }
   });
+
+  // Fast background live sync so viewing any profile stays updated in real time
+  setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      syncCommunityCovers().then(() => {
+        refreshProfileLive();
+      });
+    }
+  }, 3500);
 
   window.addEventListener('pagelle:profile:updated', () => {
     const cur = getCurrentSession();

@@ -202,11 +202,15 @@ async function init() {
 
   window.addEventListener('pagelle:covers:updated', () => {
     renderCarousel();
+    renderCollections();
   });
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      syncCommunityCovers().then(() => renderCarousel());
+      syncCommunityCovers().then(() => {
+        renderCarousel();
+        renderCollections();
+      });
     }
   });
 }

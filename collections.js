@@ -7,7 +7,7 @@ import {
   initAuthHeader,
   createDetailModalController,
   syncCommunityCovers
-} from './shared.js?v=2.2.2';
+} from './shared.js?v=2.3.0';
 
 function matchesGenre(bookGenre, targetGenre) {
   if (!bookGenre || !targetGenre) return false;
@@ -189,6 +189,15 @@ async function init() {
   window.addEventListener('pagelle:covers:updated', () => {
     renderOverview();
     renderCollectionSections();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      syncCommunityCovers().then(() => {
+        renderOverview();
+        renderCollectionSections();
+      });
+    }
   });
 
   if (selectedId) {

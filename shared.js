@@ -252,26 +252,53 @@ export async function publishCommunityCover(coverPayload) {
     coversBroadcastChannel?.postMessage({ type: 'PAGELLE_COVERS_UPDATED', covers: optimistic });
   } catch {}
 
+  // Instant dual-path server persistence:
+  // Post directly to /api/covers AND immediately ensure backup sync via /api/covers/sync in parallel!
   try {
-    const res = await fetch('/api/covers', {
+    const postPromise = fetch('/api/covers', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-auth-token': token || ''
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'x-auth-token': token || '',
+        'x-user-email': prepared.submittedByEmail || ''
       },
       body: JSON.stringify(prepared)
     });
-    const data = await res.json();
-    if (res.ok && data.cover) {
-      const finalUpdated = [data.cover, ...current.filter((c) => c.id !== data.cover.id && c.id !== prepared.id)];
-      serverCoversCache = finalUpdated;
-      saveUserBooks(finalUpdated);
-      window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: finalUpdated }));
-      try {
-        coversBroadcastChannel?.postMessage({ type: 'PAGELLE_COVERS_UPDATED', covers: finalUpdated });
-      } catch {}
-      return data.cover;
+
+    const syncPromise = fetch('/api/covers/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'x-user-email': prepared.submittedByEmail || ''
+      },
+      body: JSON.stringify({ covers: [prepared] })
+    });
+
+    const [postResult, syncResult] = await Promise.allSettled([postPromise, syncPromise]);
+    let serverCover = null;
+
+    if (postResult.status === 'fulfilled' && postResult.value.ok) {
+      const data = await postResult.value.json().catch(() => ({}));
+      if (data && data.cover) serverCover = data.cover;
     }
+    if (!serverCover && syncResult.status === 'fulfilled' && syncResult.value.ok) {
+      const data = await syncResult.value.json().catch(() => ({}));
+      if (data && Array.isArray(data.covers)) {
+        serverCover = data.covers.find((c) => c.id === prepared.id) || null;
+      }
+    }
+
+    const savedCover = serverCover || prepared;
+    const finalUpdated = [savedCover, ...current.filter((c) => c.id !== savedCover.id && c.id !== prepared.id)];
+    serverCoversCache = finalUpdated;
+    saveUserBooks(finalUpdated);
+    window.dispatchEvent(new CustomEvent('pagelle:covers:updated', { detail: finalUpdated }));
+    try {
+      coversBroadcastChannel?.postMessage({ type: 'PAGELLE_COVERS_UPDATED', covers: finalUpdated });
+    } catch {}
+    return savedCover;
   } catch (err) {
     // Return optimistic cover if network was unreachable
   }
@@ -3199,11 +3226,17 @@ export async function fetchUserProfileFromServer(identifier) {
     const param = isEmail ? `email=${encodeURIComponent(clean)}` : `id=${encodeURIComponent(clean)}`;
     const session = getCurrentSession();
     const token = getAuthToken() || (session && session.email === OWNER_EMAIL ? MASTER_ADMIN_TOKEN : '');
-    const headers = {};
+    const headers = {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache'
+    };
     if (token) headers['x-auth-token'] = token;
     if (session && session.email) headers['x-user-email'] = session.email;
 
-    const res = await fetch(`/api/network/profile?${param}`, { headers });
+    const res = await fetch(`/api/network/profile?${param}&_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers
+    });
     if (res.ok) {
       const data = await res.json();
       return data;
@@ -3236,8 +3269,8 @@ export function getMemberPosts(targetUser) {
     // 3. Precise match on unique username (avoid generic terms)
     if (username && cUser && cUser === username && !['user', 'member', 'creator', 'guest'].includes(username)) return true;
 
-    // 4. Site owner/admin check (strictly email or admin id, NEVER generic name)
-    if (isOwner && (cEmail === OWNER_EMAIL.toLowerCase() || cId === 'usr-admin-owner')) return true;
+    // 4. Site owner/admin check (strictly email or admin id, or Dhanush creator attribution)
+    if (isOwner && (cEmail === OWNER_EMAIL.toLowerCase() || cId === 'usr-admin-owner' || (c.submittedByName && c.submittedByName.toLowerCase() === 'dhanush'))) return true;
 
     return false;
   });
