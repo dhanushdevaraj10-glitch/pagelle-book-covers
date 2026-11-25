@@ -244,13 +244,9 @@
 <body class="download-page">
   <!-- SITE HEADER -->
   <header class="site-header container">
-    <a href="index.html" class="logo-link" aria-label="Pagelle Book Covers Home">
-      <span class="logo-text">PAGELLE</span>
-      <span class="logo-sub">BOOK COVERS</span>
-    </a>
-    <nav class="nav-links">
-      <a href="index.html" class="nav-link">Home</a>
-      <a href="browse.html" class="nav-link">Browse Covers</a>
+    <a href="index.html" class="brand-logo" aria-label="Pagelle Book Covers Home">PAGELLE BOOK COVERS</a>
+    <nav class="header-nav" aria-label="Primary Navigation">
+      <a href="browse.html" class="nav-link">Browse</a>
       <a href="collections.html" class="nav-link">Collections</a>
       <a href="add-cover.html" class="nav-link nav-add-btn">+ Add Cover</a>
     </nav>
@@ -376,8 +372,8 @@
   </footer>
 
   <script type="module">
-    import { initSharedApp } from './shared.js';
-    initSharedApp();
+    import { initAuthHeader } from './shared.js';
+    initAuthHeader();
 
     let deferredPrompt = null;
     const pwaBtn = document.getElementById('pwaInstallBtn');
