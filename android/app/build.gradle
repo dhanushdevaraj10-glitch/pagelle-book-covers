@@ -21,12 +21,10 @@ android {
 
     signingConfigs {
         release {
-            if (project.hasProperty('RELEASE_STORE_FILE') && file(RELEASE_STORE_FILE).exists()) {
-                storeFile file(RELEASE_STORE_FILE)
-                storePassword RELEASE_STORE_PASSWORD
-                keyAlias RELEASE_KEY_ALIAS
-                keyPassword RELEASE_KEY_PASSWORD
-            }
+            storeFile file("../pagelle-release-key.jks")
+            storePassword "PagellePass2026!"
+            keyAlias "pagelle"
+            keyPassword "PagellePass2026!"
         }
     }
 
@@ -34,10 +32,8 @@ android {
         release {
             minifyEnabled false
             shrinkResources false
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            if (project.hasProperty('RELEASE_STORE_FILE') && file(RELEASE_STORE_FILE).exists()) {
-                signingConfig signingConfigs.release
-            }
         }
         debug {
             applicationIdSuffix ".debug"

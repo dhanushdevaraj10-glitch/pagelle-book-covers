@@ -15,6 +15,23 @@
       ]
     },
     {
+      "source": "/(.*).apk",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment; filename=\"Pagelle.apk\""
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/assets/avatar-(.*)",
       "headers": [
         {
@@ -85,6 +102,14 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/download",
+      "destination": "/download.html"
+    },
+    {
+      "source": "/app",
+      "destination": "/download.html"
+    },
     {
       "source": "/api/(.*)",
       "destination": "/api?__route__=/api/$1"
