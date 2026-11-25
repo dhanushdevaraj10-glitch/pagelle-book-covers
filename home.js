@@ -9,7 +9,7 @@ import {
   bindFooterContact,
   initAuthHeader,
   createDetailModalController
-} from './shared.js?v=2.1.3';
+} from './shared.js?v=2.1.4';
 
 const HERO_SLOTS = [
   { left: '16%', top: '6%', rot: -8, z: 3 },

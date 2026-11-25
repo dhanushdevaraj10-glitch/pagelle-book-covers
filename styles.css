@@ -6778,89 +6778,50 @@ body.page-transitioning-out {
 /* ==========================================================================
    APP DOWNLOAD & ANDROID CTA STYLES
    ========================================================================== */
-.nav-download-btn {
+.nav-header-app-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: #93c5fd;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.15);
   border: 1px solid rgba(59, 130, 246, 0.4);
-  background: rgba(37, 99, 235, 0.12);
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  color: #93c5fd;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
   text-decoration: none;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: all 0.2s ease;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.18s ease;
 }
-.nav-download-btn:hover {
+.nav-header-app-btn:hover {
   background: #2563eb;
   color: #ffffff;
   border-color: #2563eb;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 0 14px rgba(37, 99, 235, 0.45);
+  transform: translateY(-1px);
 }
-.hero-cta-cluster {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.hero-download-app-bar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  height: 40px;
-  padding: 0 16px 0 14px;
-  background: rgba(37, 99, 235, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(96, 165, 250, 0.4);
-  border-radius: 999px;
-  color: #f8fafc;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
-.hero-download-app-bar:hover {
-  background: rgba(37, 99, 235, 0.32);
-  border-color: #60a5fa;
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.4);
-  color: #fff;
-}
-.hero-download-app-bar .app-badge-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #60a5fa;
-}
-.hero-download-text {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  color: #f8fafc;
-}
-.hero-download-badge {
-  background: #2563eb;
-  color: #fff;
-  font-size: 9px;
-  font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
+.nav-header-app-btn svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+  flex-shrink: 0;
 }
 @media (max-width: 600px) {
-  .hero-download-app-bar {
-    height: 36px;
-    padding: 0 12px 0 10px;
-    gap: 8px;
-  }
-  .hero-download-text {
+  .nav-header-app-btn {
+    height: 26px;
+    padding: 0 8px 0 7px;
     font-size: 10px;
-    letter-spacing: 1px;
+    gap: 4px;
+    letter-spacing: 0.6px;
+  }
+  .nav-header-app-btn svg {
+    width: 12px;
+    height: 12px;
   }
 }
