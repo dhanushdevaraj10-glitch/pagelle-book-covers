@@ -1,0 +1,79 @@
+================================================================================
+GOOGLE PLAY CONSOLE - STORE LISTING METADATA FOR PAGELLE
+================================================================================
+
+1. APP DETAILS:
+--------------------------------------------------------------------------------
+App name (30 chars max):
+Pagelle: Book Covers & Gallery
+
+Short description (80 chars max):
+Curate, explore, and design stunning book covers in a community archive.
+
+Full description (4000 chars max):
+Pagelle Book Covers is a curated visual archive and creative studio dedicated to editorial jacket art, contemporary book cover design, and community curation.
+
+Whether you are a bibliophile, designer, typographer, or passionate reader, Pagelle brings the physical bookshelf aesthetic to your Android device with tactile elegance.
+
+KEY FEATURES:
+
+• CURATED EDITORIAL ARCHIVE
+Explore iconic book covers spanning classic literature, modern fiction, speculative sci-fi, noir suspense, and modernist typography editions. Discover jackets created by world-renowned publishers, independent studios, and passionate book artists.
+
+• LIVE COVER STUDIO
+Unleash your creativity with the built-in Cover Studio. Generate custom book jacket designs with rich editorial layouts, Swiss-style typography, curated atmospheric color palettes, and bespoke geometric silhouettes in seconds.
+
+• COMMUNITY SUBMISSIONS & DISCOVERY
+Contribute your own book cover editions to the archive. Upload your illustrations, vintage jacket photos, or digital art. Follow other creators, view their portfolios, and celebrate book design together.
+
+• PERSONAL FAVORITES & COLLECTIONS
+Bookmark covers you adore into your personal library. Organize covers by genre—from "Sci-Fi, Speculative & Cosmic Visions" to "Modern Fiction & Contemporary Bestsellers."
+
+• REAL-TIME SYNC & INSTANT UPDATES
+Enjoy seamless synchronization across all your devices. Newly uploaded covers and profile updates appear in real time throughout the community gallery.
+
+• DESIGNED FOR IMMERSIVE READING
+Crafted with a luxury dark aesthetic, smooth gesture interactions, and fast responsive navigation inspired by the finest print publications.
+
+Connect with our community of book lovers and designers worldwide. Submit your covers, curate your shelf, and celebrate the art of the book with Pagelle.
+
+--------------------------------------------------------------------------------
+2. GRAPHICS & MEDIA SPECIFICATIONS (Assets generated in android/playstore/):
+--------------------------------------------------------------------------------
+• App Icon:
+  - File: android/playstore/icon-512.png (512 x 512 px, 32-bit PNG)
+
+• Feature Graphic:
+  - File: android/playstore/feature-graphic.png (1024 x 500 px, 24-bit PNG)
+
+• Screenshots:
+  - Recommended minimum of 4 phone screenshots (16:9 or 18:9 aspect ratio, e.g., 1080 x 1920 or 1080 x 2400 px) capturing:
+    1. Home Page / Luxury Featured Carousel
+    2. Browse Gallery / Genre Filtering
+    3. Thematic Collections (Classics, Sci-Fi, Fiction)
+    4. Cover Studio / Live Design Editor
+    5. User Profile / Created & Saved Covers
+
+--------------------------------------------------------------------------------
+3. CATEGORIZATION & CONTACT DETAILS:
+--------------------------------------------------------------------------------
+• Application Type: App
+• Category: Books & Reference (Secondary: Art & Design)
+• Tags: Books, Book Covers, Graphic Design, Art, Literature, Reading
+• Support Email: dhanushdevaraj10@gmail.com
+• Website: https://pagelle-book-covers.vercel.app
+• Privacy Policy URL: https://pagelle-book-covers.vercel.app/privacy.html
+
+--------------------------------------------------------------------------------
+4. POLICY & CONTENT RATING:
+--------------------------------------------------------------------------------
+• Target Audience: 13 years and older (or General Audience)
+• Content Rating: PEGI 3 / ESRB Everyone
+• Ads: "No, my app does not contain ads"
+• Financial Features: "My app does not provide financial features"
+• Data Safety:
+  - Data collected: Name, Email address, User content (photos/images uploaded by user)
+  - Data use: App functionality, Account management
+  - Data encrypted in transit: Yes (HTTPS / TLS)
+  - Data deletion mechanism: Yes (In-app account and data deletion available in Profile settings)
+================================================================================

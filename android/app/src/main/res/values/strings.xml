@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Pagelle Book Covers</string>
+    <string name="website_url">https://pagelle-book-covers.vercel.app</string>
+    <string name="offline_title">Connection Lost</string>
+    <string name="offline_msg">Please check your internet connection to browse Pagelle.</string>
+    <string name="retry_btn">Tap to Retry</string>
+</resources>

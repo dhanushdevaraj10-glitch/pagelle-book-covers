@@ -1,0 +1,30 @@
+{
+  "packageId": "com.pagelle.bookcovers",
+  "host": "pagelle-book-covers.vercel.app",
+  "name": "Pagelle: Book Covers & Gallery",
+  "launcherName": "Pagelle",
+  "themeColor": "#0C0D10",
+  "navigationColor": "#0C0D10",
+  "backgroundColor": "#0C0D10",
+  "enableNotifications": true,
+  "startUrl": "/?source=pwa",
+  "iconUrl": "https://pagelle-book-covers.vercel.app/assets/icons/icon-512.png",
+  "maskableIconUrl": "https://pagelle-book-covers.vercel.app/assets/icons/icon-512.png",
+  "appVersionCode": 1,
+  "appVersionName": "1.0.0",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "display": "standalone",
+  "features": {
+    "playBilling": {
+      "enabled": false
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "signingKey": {
+    "path": "./android/pagelle-release-key.jks",
+    "alias": "pagelle"
+  }
+}

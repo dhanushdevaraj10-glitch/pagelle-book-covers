@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "PAGELLE BOOK COVERS — Curated book cover gallery and community showcase",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "app:build": "cd android && gradlew.bat assembleDebug",
+    "app:bundle": "cd android && gradlew.bat bundleRelease"
   }
 }

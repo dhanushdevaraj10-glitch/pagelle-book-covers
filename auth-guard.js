@@ -49,3 +49,10 @@
   var target = window.location.pathname + window.location.search;
   window.location.replace('login.html?next=' + encodeURIComponent(target));
 })();
+
+// Register PWA Service Worker for mobile app performance and offline support
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').catch(function() {});
+  });
+}

@@ -1377,6 +1377,22 @@ button {
   color: #6b6b6b;
 }
 
+.footer-legal-links {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #888;
+}
+
+.footer-legal-links a {
+  color: #aaa;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.footer-legal-links a:hover {
+  color: #fff;
+}
+
 .footer-inline-mail {
   color: var(--accent);
   font-weight: 600;
