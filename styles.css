@@ -5481,8 +5481,8 @@ button {
   }
 
   .profile-tab-btn {
-    font-size: 13px;
-    padding: 8px 12px 10px;
+    font-size: 12px;
+    padding: 8px 8px 10px;
     white-space: nowrap;
     flex-shrink: 0;
   }
