@@ -171,6 +171,19 @@ authFormEl.addEventListener('submit', async (e) => {
 
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 
+    // Ensure legacy un-scoped favorites key is removed so new accounts never inherit old favorites
+    try {
+      localStorage.removeItem('best_book_covers_favs_v1');
+      if (session && session.email) {
+        const userFavKey = `best_book_covers_favs_v1_${session.email.toLowerCase().trim()}`;
+        if (Array.isArray(session.favorites)) {
+          localStorage.setItem(userFavKey, JSON.stringify(session.favorites));
+        } else if (!localStorage.getItem(userFavKey)) {
+          localStorage.setItem(userFavKey, '[]');
+        }
+      }
+    } catch {}
+
     // Record login activity event in client storage for real-time admin sync
     try {
       const LOGS_KEY = 'best_book_covers_login_logs_v1';

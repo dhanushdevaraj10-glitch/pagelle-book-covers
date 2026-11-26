@@ -625,7 +625,8 @@ function sanitizeUser(u) {
     active: u.active !== false,
     loginCount: u.loginCount || 0,
     createdAt: u.createdAt,
-    lastLoginAt: u.lastLoginAt
+    lastLoginAt: u.lastLoginAt,
+    favorites: Array.isArray(u.favorites) ? u.favorites : []
   };
 }
 
@@ -673,7 +674,8 @@ async function handleApi(req, res, urlPath) {
         bio: '',
         loginCount: 1,
         createdAt: now,
-        lastLoginAt: now
+        lastLoginAt: now,
+        favorites: []
       };
       store.users.push(user);
 
@@ -695,6 +697,7 @@ async function handleApi(req, res, urlPath) {
           avatar: user.avatar,
           bio: user.bio,
           accountType: 'Personal',
+          favorites: [],
           loggedInAt: now
         },
         log: logEvent
@@ -751,6 +754,7 @@ async function handleApi(req, res, urlPath) {
         avatar: userAvatar,
         bio: userBio,
         accountType: userAccountType,
+        favorites: Array.isArray(user.favorites) ? user.favorites : [],
         loggedInAt: now
       },
       log: logEvent
@@ -848,7 +852,8 @@ async function handleApi(req, res, urlPath) {
       bio: isOwner ? 'Thick Thighs pretty eyes' : '',
       loginCount: 1,
       createdAt: now,
-      lastLoginAt: now
+      lastLoginAt: now,
+      favorites: []
     };
 
     store.users.push(newUser);
@@ -870,6 +875,7 @@ async function handleApi(req, res, urlPath) {
         avatar: newUser.avatar || 'assets/default-avatar.png',
         bio: newUser.bio || '',
         accountType: newUser.accountType || 'Personal',
+        favorites: [],
         loggedInAt: now
       },
       log: logEvent
@@ -1210,6 +1216,40 @@ async function handleApi(req, res, urlPath) {
       covers: myCovers,
       totalPosts: myCovers.length
     });
+    return;
+  }
+
+  if (urlPath === '/api/user/favorites' && req.method === 'GET') {
+    let auth = getAuthenticatedSession(req, store);
+    let targetUser = auth ? auth.user : null;
+    const headerEmail = req.headers['x-user-email'];
+    if (!targetUser && headerEmail) {
+      targetUser = store.users.find((u) => u.email.toLowerCase() === String(headerEmail).toLowerCase());
+    }
+    if (!targetUser) {
+      sendJson(res, 200, { ok: true, favorites: [] });
+      return;
+    }
+    sendJson(res, 200, { ok: true, favorites: Array.isArray(targetUser.favorites) ? targetUser.favorites : [] });
+    return;
+  }
+
+  if (urlPath === '/api/user/favorites' && req.method === 'POST') {
+    let auth = getAuthenticatedSession(req, store);
+    let targetUser = auth ? auth.user : null;
+    const headerEmail = req.headers['x-user-email'];
+    if (!targetUser && headerEmail) {
+      targetUser = store.users.find((u) => u.email.toLowerCase() === String(headerEmail).toLowerCase());
+    }
+    if (!targetUser) {
+      sendJson(res, 401, { error: 'Please sign in to save favorites.' });
+      return;
+    }
+    const body = await readJsonBody(req);
+    const newFavs = Array.isArray(body.favorites) ? body.favorites.filter((id) => typeof id === 'string') : [];
+    targetUser.favorites = newFavs;
+    await saveStore(store);
+    sendJson(res, 200, { ok: true, favorites: targetUser.favorites });
     return;
   }
 

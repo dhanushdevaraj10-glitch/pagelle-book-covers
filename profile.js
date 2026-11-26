@@ -26,7 +26,7 @@ import {
   fetchUserProfileFromServer,
   getMemberPosts,
   getDeletedCoverIds
-} from './shared.js?v=2.3.0';
+} from './shared.js?v=2.3.2';
 
 function escapeHtml(str) {
   return String(str || '')
@@ -539,14 +539,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
-    // Render Saved Covers grid
-    const favIds = loadFavorites();
+    // Render Saved Covers grid - strictly scoped to this profile
+    const isViewingSelf = Boolean(activeUser && activeUser.isSelf);
+    const favIds = loadFavorites(activeUser);
     const favBooks = favIds.map((id) => findBookById(id)).filter(Boolean);
     tabSavedCountEl.textContent = String(favBooks.length);
 
     userSavedGrid.innerHTML = '';
     if (favBooks.length === 0) {
       userSavedEmpty.classList.remove('hidden');
+      const emptyTitle = userSavedEmpty.querySelector('.empty-title');
+      const emptySub = userSavedEmpty.querySelector('.empty-subtitle');
+      if (emptyTitle && emptySub) {
+        if (isViewingSelf) {
+          emptyTitle.textContent = 'No saved book covers yet';
+          emptySub.textContent = 'Explore the archive and click "Save" on any book cover to collect it in your library.';
+        } else {
+          emptyTitle.textContent = 'No saved book covers';
+          emptySub.textContent = `${activeUser.name || 'This user'} hasn't saved any book covers yet.`;
+        }
+      }
     } else {
       userSavedEmpty.classList.add('hidden');
       favBooks.forEach((book) => {

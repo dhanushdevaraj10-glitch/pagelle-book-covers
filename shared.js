@@ -360,9 +360,50 @@ export function saveUserBooks(userBooks) {
   }
 }
 
-export function loadFavorites() {
+export function getFavoritesStorageKey(forUser) {
+  let targetEmail = '';
+  if (typeof forUser === 'string' && forUser.trim()) {
+    targetEmail = forUser.trim().toLowerCase();
+  } else if (forUser && typeof forUser === 'object') {
+    targetEmail = (forUser.email || forUser.userId || forUser.id || '').trim().toLowerCase();
+  }
+  if (!targetEmail) {
+    const session = getCurrentSession();
+    targetEmail = session && session.email ? session.email.trim().toLowerCase() : 'guest';
+  }
+  return `best_book_covers_favs_v1_${targetEmail}`;
+}
+
+export function loadFavorites(forUser) {
   try {
-    const raw = localStorage.getItem(STORAGE_FAVORITES_KEY);
+    const session = getCurrentSession();
+    const sessionEmail = session && session.email ? session.email.toLowerCase().trim() : '';
+
+    let targetEmail = '';
+    if (typeof forUser === 'string' && forUser.trim()) {
+      targetEmail = forUser.trim().toLowerCase();
+    } else if (forUser && typeof forUser === 'object') {
+      targetEmail = (forUser.email || forUser.userId || forUser.id || '').trim().toLowerCase();
+    }
+    if (!targetEmail) {
+      targetEmail = sessionEmail || 'guest';
+    }
+
+    const userKey = `best_book_covers_favs_v1_${targetEmail}`;
+
+    // Clean up un-scoped legacy key so it never leaks default saved books to any new user
+    if (localStorage.getItem(STORAGE_FAVORITES_KEY)) {
+      if (sessionEmail === OWNER_EMAIL.toLowerCase() || targetEmail === OWNER_EMAIL.toLowerCase()) {
+        const ownerKey = `best_book_covers_favs_v1_${OWNER_EMAIL.toLowerCase()}`;
+        if (!localStorage.getItem(ownerKey)) {
+          const legacy = localStorage.getItem(STORAGE_FAVORITES_KEY);
+          if (legacy) localStorage.setItem(ownerKey, legacy);
+        }
+      }
+      localStorage.removeItem(STORAGE_FAVORITES_KEY);
+    }
+
+    const raw = localStorage.getItem(userKey);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -370,9 +411,39 @@ export function loadFavorites() {
   }
 }
 
-export function saveFavorites(favorites) {
+export function saveFavorites(favorites, forUser) {
   try {
-    localStorage.setItem(STORAGE_FAVORITES_KEY, JSON.stringify(favorites));
+    const session = getCurrentSession();
+    const sessionEmail = session && session.email ? session.email.toLowerCase().trim() : '';
+
+    let targetEmail = '';
+    if (typeof forUser === 'string' && forUser.trim()) {
+      targetEmail = forUser.trim().toLowerCase();
+    } else if (forUser && typeof forUser === 'object') {
+      targetEmail = (forUser.email || forUser.userId || forUser.id || '').trim().toLowerCase();
+    }
+    if (!targetEmail) {
+      targetEmail = sessionEmail || 'guest';
+    }
+
+    const userKey = `best_book_covers_favs_v1_${targetEmail}`;
+    localStorage.removeItem(STORAGE_FAVORITES_KEY);
+
+    const cleanFavs = Array.isArray(favorites) ? favorites : [];
+    localStorage.setItem(userKey, JSON.stringify(cleanFavs));
+
+    // Sync to backend if authenticated
+    const token = session && session.token ? session.token : '';
+    if (token && targetEmail === sessionEmail) {
+      fetch('/api/user/favorites', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token
+        },
+        body: JSON.stringify({ favorites: cleanFavs })
+      }).catch(() => {});
+    }
   } catch {
     // Ignore storage quota errors for favorites
   }
