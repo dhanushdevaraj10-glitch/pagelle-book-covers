@@ -6221,11 +6221,12 @@ button {
   }
 
   .mobile-dock-btn.active {
-    background: linear-gradient(145deg, rgba(142, 102, 64, 0.42), rgba(95, 66, 40, 0.32));
-    border: 1.5px solid rgba(214, 185, 150, 0.65);
+    background: #684a28;
+    background: linear-gradient(145deg, #75522d 0%, #684a28 50%, #5e3f21 100%);
+    border: 1.5px solid #947757;
     color: #ffffff;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45),
-                inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5),
+                inset 0 1px 1px rgba(255, 255, 255, 0.22);
   }
 
   .mobile-dock-icon {

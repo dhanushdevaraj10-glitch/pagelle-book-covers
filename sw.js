@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pagelle-cache-v1.0.9';
+const CACHE_NAME = 'pagelle-cache-v1.1.0';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
