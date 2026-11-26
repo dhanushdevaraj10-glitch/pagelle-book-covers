@@ -1027,8 +1027,81 @@ export function openConfirmModal({
   });
 }
 
+export function isInsideApp() {
+  try {
+    if (typeof window === 'undefined') return false;
+
+    // 1. Android Native WebView bridge or injected flag
+    if (window.isPagelleApp === true || window.PagelleNative !== undefined) {
+      return true;
+    }
+
+    // 2. Class on root or body
+    if (document.documentElement.classList.contains('is-pagelle-app') || document.body?.classList.contains('is-pagelle-app')) {
+      return true;
+    }
+
+    // 3. User agent check
+    const ua = navigator.userAgent || '';
+    if (ua.includes('PagelleAndroidApp') || ua.includes('PagelleApp')) {
+      return true;
+    }
+
+    // 4. Query param (?app=1 or ?source=app)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('app') === '1' || urlParams.get('source') === 'app') {
+      try {
+        sessionStorage.setItem('pagelle_in_app', 'true');
+      } catch {}
+      return true;
+    }
+
+    // 5. In-app persistent storage
+    if (sessionStorage.getItem('pagelle_in_app') === 'true' || localStorage.getItem('pagelle_in_app') === 'true') {
+      return true;
+    }
+
+    // 6. Standalone PWA display-mode check
+    if (window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches || window.matchMedia('(display-mode: minimal-ui)').matches)) {
+      return true;
+    }
+
+    // 7. iOS standalone
+    if (window.navigator && window.navigator.standalone === true) {
+      return true;
+    }
+
+    // 8. Android intent referrer
+    if (document.referrer && (document.referrer.includes('android-app://') || document.referrer.includes('com.pagelle.bookcovers'))) {
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+if (typeof window !== 'undefined') {
+  if (isInsideApp()) {
+    try {
+      document.documentElement.classList.add('is-pagelle-app');
+    } catch {}
+  }
+  window.addEventListener('appinstalled', () => {
+    try {
+      localStorage.setItem('pagelle_in_app', 'true');
+      sessionStorage.setItem('pagelle_in_app', 'true');
+    } catch {}
+    document.querySelectorAll('.nav-header-app-btn').forEach((btn) => btn.remove());
+    document.documentElement.classList.add('is-pagelle-app');
+  });
+}
+
 export function initAuthHeader() {
   initInstantPrefetch();
+  const inApp = isInsideApp();
+  if (inApp) {
+    document.documentElement.classList.add('is-pagelle-app');
+  }
+
   const nav = document.querySelector('.header-nav');
   if (!nav) return;
   const header = nav.closest('.site-header') || nav.parentNode;
@@ -1036,19 +1109,21 @@ export function initAuthHeader() {
 
   const session = getCurrentSession();
   if (!session) {
-    const wrap = document.createElement('div');
-    wrap.className = 'nav-user-wrap';
-    const appBtn = document.createElement('a');
-    appBtn.href = 'download.html';
-    appBtn.className = 'nav-header-app-btn';
-    appBtn.setAttribute('title', 'Download Pagelle Android App');
-    appBtn.setAttribute('aria-label', 'Download Pagelle Android App');
-    appBtn.innerHTML = `
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993 0 .5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 7.9044 13.8533 7.5 12 7.5s-3.5902.4044-5.1368 1.4497L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
-      <span>APP</span>
-    `;
-    wrap.appendChild(appBtn);
-    header.appendChild(wrap);
+    if (!inApp) {
+      const wrap = document.createElement('div');
+      wrap.className = 'nav-user-wrap';
+      const appBtn = document.createElement('a');
+      appBtn.href = 'download.html';
+      appBtn.className = 'nav-header-app-btn';
+      appBtn.setAttribute('title', 'Download Pagelle Android App');
+      appBtn.setAttribute('aria-label', 'Download Pagelle Android App');
+      appBtn.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993 0 .5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 7.9044 13.8533 7.5 12 7.5s-3.5902.4044-5.1368 1.4497L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+        <span>APP</span>
+      `;
+      wrap.appendChild(appBtn);
+      header.appendChild(wrap);
+    }
     initMobileBottomNav();
     return;
   }
@@ -1403,20 +1478,23 @@ export function initAuthHeader() {
     });
   }
 
-  // 3. Android APP Button (positioned on right side of profile)
-  const appBtn = document.createElement('a');
-  appBtn.href = 'download.html';
-  appBtn.className = 'nav-header-app-btn';
-  appBtn.setAttribute('title', 'Download Pagelle Android App');
-  appBtn.setAttribute('aria-label', 'Download Pagelle Android App');
-  appBtn.innerHTML = `
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993 0 .5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 7.9044 13.8533 7.5 12 7.5s-3.5902.4044-5.1368 1.4497L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
-    <span>APP</span>
-  `;
-
   wrap.appendChild(profileBtn);
   wrap.appendChild(chevronBtn);
-  wrap.appendChild(appBtn);
+
+  if (!inApp) {
+    // 3. Android APP Button (positioned on right side of profile when on website)
+    const appBtn = document.createElement('a');
+    appBtn.href = 'download.html';
+    appBtn.className = 'nav-header-app-btn';
+    appBtn.setAttribute('title', 'Download Pagelle Android App');
+    appBtn.setAttribute('aria-label', 'Download Pagelle Android App');
+    appBtn.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993 0 .5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 7.9044 13.8533 7.5 12 7.5s-3.5902.4044-5.1368 1.4497L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+      <span>APP</span>
+    `;
+    wrap.appendChild(appBtn);
+  }
+
   wrap.appendChild(menu);
   header.appendChild(wrap);
 

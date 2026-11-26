@@ -30,7 +30,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String TARGET_URL = "https://pagelle-book-covers.vercel.app";
+    private static final String TARGET_URL = "https://pagelle-book-covers.vercel.app?app=1";
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -132,6 +132,14 @@ public class MainActivity extends AppCompatActivity {
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(webView, true);
 
+        // Enable Javascript interface for app detection
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
+            public boolean isApp() {
+                return true;
+            }
+        }, "PagelleNative");
+
         webView.setWebViewClient(new CustomWebViewClient());
         webView.setWebChromeClient(new CustomWebChromeClient());
     }
@@ -203,6 +211,7 @@ public class MainActivity extends AppCompatActivity {
             super.onPageFinished(view, url);
             progressBar.setVisibility(View.GONE);
             swipeRefreshLayout.setRefreshing(false);
+            view.evaluateJavascript("window.isPagelleApp = true; try { if (document.documentElement) { document.documentElement.classList.add('is-pagelle-app'); } sessionStorage.setItem('pagelle_in_app', 'true'); localStorage.setItem('pagelle_in_app', 'true'); document.querySelectorAll('.nav-header-app-btn').forEach(function(el){ el.style.display = 'none'; }); } catch(e){}", null);
         }
 
         @Override

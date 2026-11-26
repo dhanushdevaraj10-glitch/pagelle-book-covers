@@ -6,4 +6,4 @@ echo Java version:
 "%JAVA_HOME%\bin\java.exe" -version
 echo.
 echo Building release APK...
-call gradlew.bat assembleRelease --stacktrace
+call gradlew.bat assembleRelease --no-daemon --stacktrace
