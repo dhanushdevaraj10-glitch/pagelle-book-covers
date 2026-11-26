@@ -148,8 +148,46 @@ async function fetchAdminOverview() {
   }
 }
 
+function getConsolidatedUsers() {
+  const userMap = new Map();
+  (overviewData.users || []).forEach((u) => {
+    if (u && u.email) userMap.set(u.email.toLowerCase(), { ...u });
+  });
+
+  (overviewData.loginLogs || []).forEach((l) => {
+    if (l && l.email && l.email !== '—' && l.email.includes('@')) {
+      const emailLower = l.email.toLowerCase();
+      if (!userMap.has(emailLower)) {
+        userMap.set(emailLower, {
+          id: l.userId || `usr-${Date.now()}`,
+          name: l.name || emailLower.split('@')[0],
+          email: l.email,
+          role: l.role || 'user',
+          active: l.status !== 'Blocked',
+          loginCount: 1,
+          lastLoginAt: l.timestamp,
+          createdAt: l.timestamp,
+          isOwner: emailLower === 'dhanushdevaraj10@gmail.com'
+        });
+      } else {
+        const u = userMap.get(emailLower);
+        if (!u.lastLoginAt || new Date(l.timestamp) > new Date(u.lastLoginAt)) {
+          u.lastLoginAt = l.timestamp;
+        }
+        if (l.name && (!u.name || u.name === 'Member' || u.name === 'Unknown')) {
+          u.name = l.name;
+        }
+      }
+    }
+  });
+
+  const users = Array.from(userMap.values());
+  users.sort((a, b) => new Date(b.lastLoginAt || b.createdAt || 0) - new Date(a.lastLoginAt || a.createdAt || 0));
+  return users;
+}
+
 function renderStats() {
-  const users = overviewData.users || [];
+  const users = getConsolidatedUsers();
   const logs = overviewData.loginLogs || [];
   const covers = overviewData.communityCovers || [];
 
@@ -263,13 +301,14 @@ async function deleteUserAccount(userId, email) {
 function renderUsers() {
   const q = userSearchInputEl.value.trim().toLowerCase();
   const filter = userFilterSelectEl.value;
+  const users = getConsolidatedUsers();
 
-  const filtered = (overviewData.users || []).filter((u) => {
+  const filtered = users.filter((u) => {
     if (filter === 'admin' && u.role !== 'admin') return false;
     if (filter === 'user' && u.role !== 'user') return false;
     if (filter === 'blocked' && u.active !== false) return false;
     if (!q) return true;
-    return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+    return (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
   });
 
   usersTableBodyEl.innerHTML = '';
@@ -484,12 +523,12 @@ async function init() {
     }
   });
 
-  // Auto-refresh every 5 seconds when visible so new logins appear in real-time
+  // Auto-refresh every 3 seconds when visible so new logins appear in real-time
   setInterval(() => {
     if (document.visibilityState === 'visible') {
       fetchAdminOverview();
     }
-  }, 5000);
+  }, 3000);
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {

@@ -6,5 +6,8 @@
     "start": "node server.js",
     "app:build": "cd android && gradlew.bat assembleDebug",
     "app:bundle": "cd android && gradlew.bat bundleRelease"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.9.0"
   }
 }

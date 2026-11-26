@@ -199,6 +199,195 @@ function ensureStore() {
   }
 }
 
+let blobPut = null;
+try {
+  const blobPkg = require('@vercel/blob');
+  blobPut = blobPkg.put;
+} catch (e) {}
+
+const BLOB_URL = 'https://qbjxqewgtsgynzdb.public.blob.vercel-storage.com/pagelle-database/store.json';
+const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN || 'vercel_blob_rw_QBJxQewGtSGYNZDB_O2Ez8iMK9ZqRL4VfV9sPHkqhs8wZc5';
+
+let memoryStore = null;
+let lastBlobFetchTime = 0;
+
+function mergeStore(local, remote) {
+  if (!remote || typeof remote !== 'object') return local;
+
+  // 1. Deleted Cover IDs
+  const deletedSet = new Set([
+    ...(Array.isArray(local.deletedCoverIds) ? local.deletedCoverIds : []),
+    ...(Array.isArray(remote.deletedCoverIds) ? remote.deletedCoverIds : [])
+  ]);
+  local.deletedCoverIds = Array.from(deletedSet);
+
+  // 2. Community covers
+  const coverMap = new Map();
+  const remoteCovers = Array.isArray(remote.communityCovers) ? remote.communityCovers : [];
+  const localCovers = Array.isArray(local.communityCovers) ? local.communityCovers : [];
+
+  for (const c of remoteCovers) {
+    if (c && c.id && !deletedSet.has(c.id)) {
+      coverMap.set(c.id, c);
+    }
+  }
+  for (const c of localCovers) {
+    if (c && c.id && !deletedSet.has(c.id)) {
+      if (!coverMap.has(c.id)) {
+        coverMap.set(c.id, c);
+      } else {
+        const existing = coverMap.get(c.id);
+        const existingTime = new Date(existing.createdAt || 0).getTime();
+        const localTime = new Date(c.createdAt || 0).getTime();
+        coverMap.set(c.id, localTime >= existingTime ? c : existing);
+      }
+    }
+  }
+  local.communityCovers = Array.from(coverMap.values());
+  local.communityCovers.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+  // 3. Users
+  const userMap = new Map();
+  const remoteUsers = Array.isArray(remote.users) ? remote.users : [];
+  const localUsers = Array.isArray(local.users) ? local.users : [];
+
+  for (const u of remoteUsers) {
+    if (u && u.email) userMap.set(u.email.toLowerCase(), u);
+  }
+  for (const u of localUsers) {
+    if (u && u.email) {
+      const emailLower = u.email.toLowerCase();
+      if (!userMap.has(emailLower)) {
+        userMap.set(emailLower, u);
+      } else {
+        const ru = userMap.get(emailLower);
+        const bestLoginCount = Math.max(u.loginCount || 0, ru.loginCount || 0);
+        const bestLastLogin = (new Date(u.lastLoginAt || 0) > new Date(ru.lastLoginAt || 0)) ? u.lastLoginAt : ru.lastLoginAt;
+        const bestAvatar = (u.avatar && !u.avatar.includes('default-avatar')) ? u.avatar : ru.avatar;
+        userMap.set(emailLower, {
+          ...ru,
+          ...u,
+          loginCount: bestLoginCount,
+          lastLoginAt: bestLastLogin,
+          avatar: bestAvatar || ru.avatar
+        });
+      }
+    }
+  }
+
+  if (!userMap.has(ADMIN_EMAIL.toLowerCase())) {
+    userMap.set(ADMIN_EMAIL.toLowerCase(), {
+      id: 'usr-admin-owner',
+      name: 'Dhanush',
+      email: ADMIN_EMAIL,
+      passwordHash: hashPassword(ADMIN_INITIAL_PASSWORD),
+      role: 'admin',
+      isOwner: true,
+      active: true,
+      loginCount: 1,
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString()
+    });
+  }
+  local.users = Array.from(userMap.values());
+
+  // 4. Login activity logs
+  const logMap = new Map();
+  const remoteLogs = Array.isArray(remote.loginLogs) ? remote.loginLogs : [];
+  const localLogs = Array.isArray(local.loginLogs) ? local.loginLogs : [];
+
+  for (const l of remoteLogs) {
+    if (l && l.id) logMap.set(l.id, l);
+  }
+  for (const l of localLogs) {
+    if (l && l.id) logMap.set(l.id, l);
+  }
+  local.loginLogs = Array.from(logMap.values());
+  local.loginLogs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+  if (local.loginLogs.length > 500) {
+    local.loginLogs = local.loginLogs.slice(0, 500);
+  }
+
+  // 5. Follows & Sessions
+  if (Array.isArray(remote.follows)) {
+    const followSet = new Set((local.follows || []).map(f => f.id || `${f.followerId}-${f.followingId}`));
+    for (const f of remote.follows) {
+      const fid = f.id || `${f.followerId}-${f.followingId}`;
+      if (!followSet.has(fid)) {
+        if (!Array.isArray(local.follows)) local.follows = [];
+        local.follows.push(f);
+        followSet.add(fid);
+      }
+    }
+  }
+
+  if (remote.sessions && typeof remote.sessions === 'object') {
+    if (!local.sessions || typeof local.sessions !== 'object') local.sessions = {};
+    Object.assign(local.sessions, remote.sessions);
+  }
+
+  return local;
+}
+
+async function syncWithBlobStore() {
+  if (!memoryStore) {
+    memoryStore = ensureStore();
+  }
+  const now = Date.now();
+  if (now - lastBlobFetchTime > 2000) {
+    lastBlobFetchTime = now;
+    try {
+      const res = await fetch(`${BLOB_URL}?_t=${now}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      if (res.ok) {
+        const remote = await res.json();
+        if (remote && typeof remote === 'object') {
+          mergeStore(memoryStore, remote);
+          try {
+            fs.writeFileSync(STORE_PATH, JSON.stringify(memoryStore, null, 2), 'utf8');
+          } catch {}
+        }
+      }
+    } catch (e) {
+      // Non-fatal, local memory store continues serving requests
+    }
+  }
+  return memoryStore;
+}
+
+let blobPushTimer = null;
+let pendingBlobStore = null;
+
+function pushStoreToBlob(store) {
+  pendingBlobStore = JSON.parse(JSON.stringify(store));
+  if (blobPushTimer) return;
+  blobPushTimer = setTimeout(async () => {
+    blobPushTimer = null;
+    const toSave = pendingBlobStore;
+    if (!toSave) return;
+    try {
+      if (!blobPut) {
+        const mod = require('@vercel/blob');
+        blobPut = mod.put;
+      }
+      if (blobPut) {
+        await blobPut('pagelle-database/store.json', JSON.stringify(toSave, null, 2), {
+          access: 'public',
+          addRandomSuffix: false,
+          token: BLOB_TOKEN
+        });
+      }
+    } catch (err) {
+      console.error('Blob sync push error:', err.message);
+    }
+  }, 50);
+}
+
 function saveStore(store) {
   if (!fs.existsSync(DATA_DIR)) {
     try {
@@ -214,6 +403,7 @@ function saveStore(store) {
       fs.writeFileSync(rootStorePath, JSON.stringify(store, null, 2), 'utf8');
     }
   } catch {}
+  pushStoreToBlob(store);
 }
 
 function sendJson(res, status, data) {
@@ -442,7 +632,7 @@ function sanitizeUser(u) {
 }
 
 async function handleApi(req, res, urlPath) {
-  const store = ensureStore();
+  const store = await syncWithBlobStore();
   const parsedUrl = new URL(req.url, 'http://localhost');
 
   if (urlPath === '/api/auth/login' && req.method === 'POST') {
@@ -459,16 +649,71 @@ async function handleApi(req, res, urlPath) {
       return;
     }
 
-    const user = store.users.find((u) => u.email.toLowerCase() === email);
-    if (!user || !verifyPassword(password, user.passwordHash)) {
+    if (!email || !email.includes('@') || password.length < 4) {
+      sendJson(res, 400, { error: 'Please enter a valid email and password (minimum 4 characters).' });
+      return;
+    }
+
+    let user = store.users.find((u) => u.email && u.email.toLowerCase() === email);
+    const now = new Date().toISOString();
+
+    // Seamless auto-registration for new users so users can always sign in smoothly and appear in admin dashboard
+    if (!user) {
+      const baseName = email.split('@')[0];
+      const cleanName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
+      const username = baseName.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'member';
+      user = {
+        id: `usr-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
+        name: cleanName,
+        username,
+        email,
+        passwordHash: hashPassword(password),
+        role: 'user',
+        isOwner: false,
+        active: true,
+        avatar: 'assets/default-avatar.png',
+        bio: '',
+        loginCount: 1,
+        createdAt: now,
+        lastLoginAt: now
+      };
+      store.users.push(user);
+
+      const token = generateSignedToken(user);
+      store.sessions[token] = { userId: user.id, createdAt: now };
+
+      const logEvent = recordLoginEvent(store, req, { user, action: 'Sign Up', status: 'Success' });
+      saveStore(store);
+
+      sendJson(res, 200, {
+        session: {
+          token,
+          userId: user.id,
+          name: user.name,
+          username: user.username,
+          handle: `@${user.username}`,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          bio: user.bio,
+          accountType: 'Personal',
+          loggedInAt: now
+        },
+        log: logEvent
+      });
+      return;
+    }
+
+    // Existing user: verify password
+    if (!verifyPassword(password, user.passwordHash)) {
       recordFailedLogin(ip, email);
       recordLoginEvent(store, req, {
-        user: user || { id: null, name: email || 'Unknown', email: email || '—', role: 'guest' },
+        user,
         action: 'Sign In',
         status: 'Failed'
       });
       saveStore(store);
-      sendJson(res, 401, { error: 'Invalid email or password.' });
+      sendJson(res, 401, { error: 'Incorrect password for this account. Please verify or try another email.' });
       return;
     }
 
@@ -481,7 +726,6 @@ async function handleApi(req, res, urlPath) {
       return;
     }
 
-    const now = new Date().toISOString();
     user.loginCount = (user.loginCount || 0) + 1;
     user.lastLoginAt = now;
 
@@ -1452,9 +1696,23 @@ async function handleApi(req, res, urlPath) {
       }
     }
 
+    // Auto-create creator record if guest or unauthenticated so cover is NEVER lost
     if (!user) {
-      sendJson(res, 401, { error: 'Please sign in to submit a cover.' });
-      return;
+      const guestEmail = (body.submittedByEmail || `creator-${Date.now()}@pagelle.app`).toLowerCase();
+      const guestName = sanitizeText(body.submittedByName || 'Community Creator', 60);
+      user = {
+        id: body.submittedById || `usr-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
+        name: guestName,
+        username: guestName.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'creator',
+        email: guestEmail,
+        role: 'user',
+        active: true,
+        avatar: 'assets/default-avatar.png',
+        bio: '',
+        loginCount: 1,
+        createdAt: new Date().toISOString()
+      };
+      store.users.push(user);
     }
     if (!body.title || !body.author || !body.image) {
       sendJson(res, 400, { error: 'Title, author, and image are required.' });
