@@ -1581,14 +1581,21 @@ export function initMobileBottomNav() {
   const pathname = window.location.pathname.toLowerCase();
 
   let active = '';
-  if (pathname.endsWith('index.html') || pathname.endsWith('/') || pathname === '' || pathname.endsWith('bookcover/') || pathname.endsWith('bookcover')) {
-    active = 'home';
-  } else if (pathname.endsWith('browse.html')) {
+  if (pathname.includes('browse')) {
     active = 'browse';
-  } else if (pathname.endsWith('collections.html')) {
+  } else if (pathname.includes('collection')) {
     active = 'collection';
-  } else if (pathname.endsWith('profile.html')) {
+  } else if (pathname.includes('profile')) {
     active = 'profile';
+  } else if (
+    pathname.endsWith('index.html') ||
+    pathname.endsWith('/') ||
+    pathname === '' ||
+    pathname.endsWith('bookcover/') ||
+    pathname.endsWith('bookcover') ||
+    pathname.endsWith('index')
+  ) {
+    active = 'home';
   }
 
   const nav = document.createElement('nav');
