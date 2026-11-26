@@ -360,35 +360,27 @@ async function syncWithBlobStore() {
   return memoryStore;
 }
 
-let blobPushTimer = null;
-let pendingBlobStore = null;
-
-function pushStoreToBlob(store) {
-  pendingBlobStore = JSON.parse(JSON.stringify(store));
-  if (blobPushTimer) return;
-  blobPushTimer = setTimeout(async () => {
-    blobPushTimer = null;
-    const toSave = pendingBlobStore;
-    if (!toSave) return;
-    try {
-      if (!blobPut) {
-        const mod = require('@vercel/blob');
-        blobPut = mod.put;
-      }
-      if (blobPut) {
-        await blobPut('pagelle-database/store.json', JSON.stringify(toSave, null, 2), {
-          access: 'public',
-          addRandomSuffix: false,
-          token: BLOB_TOKEN
-        });
-      }
-    } catch (err) {
-      console.error('Blob sync push error:', err.message);
+async function pushStoreToBlob(store) {
+  if (!store) return;
+  try {
+    if (!blobPut) {
+      const mod = require('@vercel/blob');
+      blobPut = mod.put;
     }
-  }, 50);
+    if (blobPut) {
+      await blobPut('pagelle-database/store.json', JSON.stringify(store, null, 2), {
+        access: 'public',
+        addRandomSuffix: false,
+        token: BLOB_TOKEN
+      });
+      lastBlobFetchTime = Date.now();
+    }
+  } catch (err) {
+    console.error('Blob sync push error:', err.message);
+  }
 }
 
-function saveStore(store) {
+async function saveStore(store) {
   if (!fs.existsSync(DATA_DIR)) {
     try {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -403,7 +395,7 @@ function saveStore(store) {
       fs.writeFileSync(rootStorePath, JSON.stringify(store, null, 2), 'utf8');
     }
   } catch {}
-  pushStoreToBlob(store);
+  await pushStoreToBlob(store);
 }
 
 function sendJson(res, status, data) {
@@ -536,7 +528,13 @@ function isSafeImageUrl(url) {
 }
 
 function getAuthenticatedSession(req, store) {
-  const token = req.headers['x-auth-token'];
+  let token = req.headers['x-auth-token'];
+  if (!token && req.headers['authorization']) {
+    const parts = req.headers['authorization'].split(' ');
+    if (parts.length === 2 && /^bearer$/i.test(parts[0])) {
+      token = parts[1];
+    }
+  }
   if (!token || typeof token !== 'string') return null;
 
   // Always authorize master admin token for Dhanush
@@ -683,7 +681,7 @@ async function handleApi(req, res, urlPath) {
       store.sessions[token] = { userId: user.id, createdAt: now };
 
       const logEvent = recordLoginEvent(store, req, { user, action: 'Sign Up', status: 'Success' });
-      saveStore(store);
+      await saveStore(store);
 
       sendJson(res, 200, {
         session: {
@@ -712,7 +710,7 @@ async function handleApi(req, res, urlPath) {
         action: 'Sign In',
         status: 'Failed'
       });
-      saveStore(store);
+      await saveStore(store);
       sendJson(res, 401, { error: 'Incorrect password for this account. Please verify or try another email.' });
       return;
     }
@@ -721,7 +719,7 @@ async function handleApi(req, res, urlPath) {
 
     if (user.active === false) {
       recordLoginEvent(store, req, { user, action: 'Sign In', status: 'Blocked' });
-      saveStore(store);
+      await saveStore(store);
       sendJson(res, 403, { error: 'This account has been disabled by the administrator.' });
       return;
     }
@@ -733,7 +731,7 @@ async function handleApi(req, res, urlPath) {
     store.sessions[token] = { userId: user.id, createdAt: now };
 
     const logEvent = recordLoginEvent(store, req, { user, action: 'Sign In', status: 'Success' });
-    saveStore(store);
+    await saveStore(store);
 
     const isDhanush = user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
     const userAvatar = user.avatar || (isDhanush ? 'assets/avatar-dhanush.jpg?v=2.2.0' : 'assets/default-avatar.png');
@@ -788,7 +786,7 @@ async function handleApi(req, res, urlPath) {
       if (verifyPassword(password, existingUser.passwordHash)) {
         if (existingUser.active === false) {
           recordLoginEvent(store, req, { user: existingUser, action: 'Sign In', status: 'Blocked' });
-          saveStore(store);
+          await saveStore(store);
           sendJson(res, 403, { error: 'This account has been disabled by the administrator.' });
           return;
         }
@@ -801,7 +799,7 @@ async function handleApi(req, res, urlPath) {
         store.sessions[token] = { userId: existingUser.id, createdAt: now };
 
         recordLoginEvent(store, req, { user: existingUser, action: 'Sign In', status: 'Success' });
-        saveStore(store);
+        await saveStore(store);
 
         const isDhanush = existingUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
         const existingUsername = existingUser.username || existingUser.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
@@ -858,7 +856,7 @@ async function handleApi(req, res, urlPath) {
     store.sessions[token] = { userId: newUser.id, createdAt: now };
 
     const logEvent = recordLoginEvent(store, req, { user: newUser, action: 'Sign Up', status: 'Success' });
-    saveStore(store);
+    await saveStore(store);
 
     sendJson(res, 201, {
       session: {
@@ -883,7 +881,7 @@ async function handleApi(req, res, urlPath) {
     const token = req.headers['x-auth-token'];
     if (token && store.sessions[token]) {
       delete store.sessions[token];
-      saveStore(store);
+      await saveStore(store);
     }
     sendJson(res, 200, { ok: true });
     return;
@@ -909,7 +907,7 @@ async function handleApi(req, res, urlPath) {
     }
 
     auth.user.passwordHash = hashPassword(newPassword);
-    saveStore(store);
+    await saveStore(store);
     sendJson(res, 200, { ok: true });
     return;
   }
@@ -961,7 +959,7 @@ async function handleApi(req, res, urlPath) {
           action: 'Sign In',
           status: 'Success'
         });
-        saveStore(store);
+        await saveStore(store);
       }
     }
 
@@ -1084,7 +1082,7 @@ async function handleApi(req, res, urlPath) {
     if (store.loginLogs.length > 500) {
       store.loginLogs = store.loginLogs.slice(0, 500);
     }
-    saveStore(store);
+    await saveStore(store);
 
     sendJson(res, 200, {
       ok: true,
@@ -1116,7 +1114,7 @@ async function handleApi(req, res, urlPath) {
     // Only the primary owner account holds admin access; other users stay 'user'
     target.role = 'user';
 
-    saveStore(store);
+    await saveStore(store);
     sendJson(res, 200, { user: sanitizeUser(target) });
     return;
   }
@@ -1142,7 +1140,7 @@ async function handleApi(req, res, urlPath) {
     Object.keys(store.sessions).forEach((t) => {
       if (store.sessions[t].userId === target.id) delete store.sessions[t];
     });
-    saveStore(store);
+    await saveStore(store);
     sendJson(res, 200, { ok: true });
     return;
   }
@@ -1186,7 +1184,7 @@ async function handleApi(req, res, urlPath) {
       store.communityCovers = store.communityCovers.filter(
         (c) => !c.submittedByEmail || c.submittedByEmail.toLowerCase() !== targetEmail
       );
-      saveStore(store);
+      await saveStore(store);
     }
 
     sendJson(res, 200, { ok: true, deletedEmail: targetEmail });
@@ -1284,7 +1282,7 @@ async function handleApi(req, res, urlPath) {
       });
     }
 
-    saveStore(store);
+    await saveStore(store);
     sendJson(res, 200, {
       ok: true,
       user: sanitizeUser(targetUser)
@@ -1493,7 +1491,7 @@ async function handleApi(req, res, urlPath) {
         createdAt: new Date().toISOString()
       };
       store.users.push(follower);
-      saveStore(store);
+      await saveStore(store);
     }
 
     if (!follower) {
@@ -1578,7 +1576,7 @@ async function handleApi(req, res, urlPath) {
       nowFollowing = true;
     }
 
-    saveStore(store);
+    await saveStore(store);
 
     const targetFollowers = store.follows.filter(f =>
       (cleanTargetId && (f.followingId === cleanTargetId || f.followedId === cleanTargetId)) ||
@@ -1655,7 +1653,7 @@ async function handleApi(req, res, urlPath) {
       }
     }
     if (added > 0) {
-      saveStore(store);
+      await saveStore(store);
     }
     sendJson(res, 200, {
       ok: true,
@@ -1746,7 +1744,7 @@ async function handleApi(req, res, urlPath) {
     store.deletedCoverIds = store.deletedCoverIds.filter((id) => id !== cover.id);
     store.communityCovers = store.communityCovers.filter((c) => c.id !== cover.id);
     store.communityCovers.unshift(cover);
-    saveStore(store);
+    await saveStore(store);
     sendJson(res, 201, { cover });
     return;
   }
@@ -1770,7 +1768,7 @@ async function handleApi(req, res, urlPath) {
       // Register tombstone anyway to ensure it is never resurrected
       if (!store.deletedCoverIds.includes(body.coverId)) {
         store.deletedCoverIds.push(body.coverId);
-        saveStore(store);
+        await saveStore(store);
       }
       sendJson(res, 200, { ok: true, deletedCoverId: body.coverId });
       return;
@@ -1789,7 +1787,7 @@ async function handleApi(req, res, urlPath) {
       store.deletedCoverIds.push(target.id);
     }
     store.communityCovers = store.communityCovers.filter((c) => c.id !== target.id);
-    saveStore(store);
+    await saveStore(store);
     sendJson(res, 200, { ok: true, deletedCoverId: target.id });
     return;
   }
